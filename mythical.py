@@ -91,7 +91,7 @@ def main():
         try:
             response = get_all_mythic_plus_best_runs(region, realm, name)
         except InternalError as error:
-            context.send(str(error))
+            await context.send(str(error))
             return
 
         data = response.json()
@@ -115,7 +115,7 @@ def main():
             try:
                 response = get_all_mythic_plus_best_runs(region, realm, name)
             except InternalError as error:
-                context.send(f"failed to add {name}: {error}")
+                await context.send(f"failed to add {name}: {error}")
                 return
 
             data = response.json()
@@ -170,7 +170,7 @@ def main():
             try:
                 response = get_all_mythic_plus_best_runs(region, realm, name)
             except InternalError as error:
-                context.send(f"failed to add {name}: {error}")
+                await context.send(f"failed to add {name}: {error}")
                 return
 
             data = response.json()
