@@ -5,7 +5,6 @@ from disnake.ext import commands
 from disnake.ext import tasks
 import requests
 
-import configparser
 import datetime
 import sqlite3
 import traceback
@@ -326,7 +325,7 @@ class RaiderDatabase:
             return cursor.rowcount > 0
 
 
-class Raider(commands.Cog):
+class RaiderCog(commands.Cog):
     """Commands for managing rating notifications."""
 
     database: RaiderDatabase
@@ -381,7 +380,7 @@ class Raider(commands.Cog):
     def message_here(self) -> str:
         return "rating notifications will be posted to this channel!"
 
-    @commands.command(name="rating")
+    @commands.command(name="raider:rating")
     async def command_rating(self, context: commands.Context, region: str, realm: str, name: str):
         """Query the rating directly from raider.io"""
 
@@ -394,39 +393,7 @@ class Raider(commands.Cog):
 
         await context.send(self.message_rating(region, realm, name, rating))
 
-    @commands.command(name="add")
-    async def command_add(self, context: commands.Context, region: str, realm: str, name: str):
-        """Start watching a new player."""
-
-        self.database.set_default_channel(context.guild.id, context.channel.id)
-
-        player = self.database.get_player(region, realm, name)
-        if player is None:
-            try:
-                data = get_all_mythic_plus_best_runs(region, realm, name)
-                rating = compute_mythic_plus_rating(data)
-            except InternalError as error:
-                await context.send(f"error: {error}")
-                return
-
-            player = self.database.add_player(region, realm, name, rating)
-
-        added = self.database.watch_player(context.guild.id, player.id)
-        await context.send(self.message_add(player, added))
-
-    @commands.command(name="remove")
-    async def command_remove(self, context: commands.Context, region: str, realm: str, name: str):
-        """Stop watching a player."""
-
-        player = self.database.get_player(region, realm, name)
-        if player is None:
-            await context.send(f"error: specified player {name} does not exist!")
-            return
-
-        removed = self.database.unwatch_player(context.guild.id, player.id)
-        await context.send(self.message_remove(player, removed))
-
-    @commands.command(name="leaderboard")
+    @commands.command(name="raider:leaderboard")
     async def command_leaderboard(self, context: commands.Context):
         """List players watched by the guild in order of rating."""
 
@@ -453,7 +420,39 @@ class Raider(commands.Cog):
 
         await context.send(embed=embed)
 
-    @commands.command(name="here")
+    @commands.command(name="raider:add")
+    async def command_add(self, context: commands.Context, region: str, realm: str, name: str):
+        """Start watching a new player."""
+
+        self.database.set_default_channel(context.guild.id, context.channel.id)
+
+        player = self.database.get_player(region, realm, name)
+        if player is None:
+            try:
+                data = get_all_mythic_plus_best_runs(region, realm, name)
+                rating = compute_mythic_plus_rating(data)
+            except InternalError as error:
+                await context.send(f"error: {error}")
+                return
+
+            player = self.database.add_player(region, realm, name, rating)
+
+        added = self.database.watch_player(context.guild.id, player.id)
+        await context.send(self.message_add(player, added))
+
+    @commands.command(name="raider:remove")
+    async def command_remove(self, context: commands.Context, region: str, realm: str, name: str):
+        """Stop watching a player."""
+
+        player = self.database.get_player(region, realm, name)
+        if player is None:
+            await context.send(f"error: specified player {name} does not exist!")
+            return
+
+        removed = self.database.unwatch_player(context.guild.id, player.id)
+        await context.send(self.message_remove(player, removed))
+
+    @commands.command(name="raider:here")
     async def command_here(self, context: commands.Context):
         """Set notification channel."""
 
@@ -501,35 +500,3 @@ class Raider(commands.Cog):
         """Remove players who are no longer watched by a guild."""
 
         self.database.delete_unwatched_players()
-
-
-def main():
-    """Build the bot, register commands, configure, and run.
-
-    We put this in a separate function to hide variables from the
-    global scope; we call it in the __name__ check in order to prevent
-    the bot from running if we're trying to import functionality from
-    other Python files.
-    """
-
-    intents = disnake.Intents(messages=True, message_content=True, reactions=True, guilds=True)
-    bot = commands.Bot(command_prefix="%", intents=intents)
-
-    config = configparser.ConfigParser()
-    config.read("mythical.conf")
-    client_id = config["discord"]["client_id"]
-
-    # Print an add link based on configuration
-    print(
-        "https://discord.com/api/oauth2/authorize"
-        f"?client_id={client_id}"
-        "&permissions=274877909056"
-        "&scope=bot"
-    )
-
-    bot.add_cog(Raider(bot, RaiderDatabase(sqlite3.connect("mythical.sqlite3"))))
-    bot.run(config["discord"]["token"])
-
-
-if __name__ == "__main__":
-    main()
