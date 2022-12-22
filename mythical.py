@@ -112,6 +112,12 @@ def main():
                 await context.send(f"already tracking {name}!")
                 return
 
+            # Insert channel if not exist; essentially a default
+            cursor.execute(
+                "INSERT OR IGNORE INTO channels (guild, channel) VALUES (?, ?)",
+                (context.guild.id, context.channel.id),
+            )
+
             try:
                 response = get_all_mythic_plus_best_runs(region, realm, name)
             except InternalError as error:
