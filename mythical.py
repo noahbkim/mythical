@@ -56,7 +56,7 @@ def compute_mythic_plus_rating(data: dict) -> float:
     return score
 
 
-def format_rating_message(data: dict, rating: float) -> float:
+def format_rating_message(data: dict, rating: float, old_rating: float = None) -> float:
     """Compose a rating update message using best run data."""
 
     name = data["name"]
@@ -64,7 +64,10 @@ def format_rating_message(data: dict, rating: float) -> float:
     race = data["race"]
     role = data["active_spec_role"].lower()
 
-    return f"{name} ({class_} {race}, {role}) has rating {round(rating, 1)}"
+    if old_rating is not None:
+        return f"{name} ({class_} {race}, {role}) has a new rating {round(old_rating, 1)} → {round(rating, 1)}"
+    else:
+        return f"{name} ({class_} {race}, {role}) has rating {round(rating, 1)}"
 
 
 def main():
@@ -198,7 +201,7 @@ def main():
             print(data["name"], new_rating, rating)
             if new_rating != rating:
                 channel = bot.get_channel(channel_id)
-                await channel.send(format_rating_message(data, rating))
+                await channel.send(format_rating_message(data, new_rating, rating))
 
                 with database:
                     update_cursor = database.cursor()
