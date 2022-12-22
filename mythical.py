@@ -200,6 +200,13 @@ def main():
                 channel = bot.get_channel(channel_id)
                 await channel.send(format_rating_message(data, rating))
 
+                with database:
+                    update_cursor = database.cursor()
+                    update_cursor.execute(
+                        "UPDATE players SET rating=? WHERE region=? AND realm=? AND name=?",
+                        (new_rating, region, realm, name),
+                    )
+
     @update.before_loop
     async def before_update():
         await bot.wait_until_ready()
