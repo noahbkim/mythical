@@ -266,6 +266,7 @@ class Raider(commands.Cog):
         self.database = database
         self.bot = bot
         self.loop_update.start()
+        self.loop_clean.start()
 
     def message_add(self, player: Player, added: bool) -> str:
         if added:
@@ -410,7 +411,15 @@ class Raider(commands.Cog):
 
     @loop_update.before_loop
     async def before_loop_update(self):
+        """We don't have access to channels unless we do this."""
+
         await self.bot.wait_until_ready()
+
+    @tasks.loop(hours=24)
+    async def loop_clean(self):
+        """Remove players who are no longer watched by a guild."""
+
+        self.database.delete_unwatched_players()
 
 
 def main():
