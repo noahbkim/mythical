@@ -156,7 +156,7 @@ def main():
         results.sort(key=lambda pair: pair[1], reverse=True)
         lines = []
         for i, (name, rating) in enumerate(results):
-            lines.append(f"{i + 1}. {name} ({rating})")
+            lines.append(f"{i + 1}. {name} ({round(rating, 1)})")
         await context.send("\n".join(lines))
 
     @bot.command()
