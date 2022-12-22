@@ -64,6 +64,12 @@ def compute_mythic_plus_rating(data: dict) -> float:
 
 @dataclass
 class Player:
+    """This is a convenience class that mirrors the database record.
+
+    The dataclass decorator generates a constructor along with some
+    other object-related methods for convenience.
+    """
+
     id: int
     region: str
     realm: str
@@ -72,51 +78,78 @@ class Player:
 
 
 class RaiderDatabase:
-    """Wrapper around database connection."""
+    """High level database access for raider.io commands.
+
+    Abstracts away all the SQL queries we need to persist the state of
+    our notification bot. Requires a sqlite3 connection; it's not our
+    responsibility to create the database file, only to use it.
+    """
 
     connection: sqlite3.Connection
 
     def __init__(self, connection: sqlite3.Connection):
-        """Initialize with database connection."""
+        """Initialize with database connection and populate."""
 
         self.connection = connection
         self.populate()
 
     def populate(self):
-        """Create necessary tables for operation."""
+        """Create necessary tables for operation.
 
-        with self.connection:
-            self.connection.execute("""
-                CREATE TABLE IF NOT EXISTS players (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    region VARCHAR COLLATE NOCASE,
-                    realm VARCHAR COLLATE NOCASE,
-                    name VARCHAR COLLATE NOCASE,
-                    rating FLOAT,
-                    UNIQUE (region, realm, name) ON CONFLICT REPLACE
-                );
-            """)
-            self.connection.execute("""
-                CREATE TABLE IF NOT EXISTS watching (
-                    guild_id INTEGER,
-                    player_id INTEGER,
-                    FOREIGN KEY(player_id) REFERENCES players(id),
-                    UNIQUE (guild_id, player_id)
-                );
-            """)
-            self.connection.execute("""
-                CREATE TABLE IF NOT EXISTS channels (
-                    guild_id INTEGER,
-                    channel_id INTEGER,
-                    UNIQUE (guild_id)
-                );
-            """)
+        If these tables already exist, do nothing. If the tables exist
+        but have an outdated schema, any resultant errors won't be
+        thrown until runtime. If database migration is a concern, I'd
+        recommend using something more sophisticated than sqlite3.
+        """
+
+        # This table describes each player anyone on any Discord
+        # server might be watching. The region, realm, and name must
+        # be unique to guarantee there are no repeats. Note that these
+        # fields are also case-insensitive (per the raider.io API).
+        self.connection.execute("""
+            CREATE TABLE IF NOT EXISTS players (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                region VARCHAR COLLATE NOCASE,
+                realm VARCHAR COLLATE NOCASE,
+                name VARCHAR COLLATE NOCASE,
+                rating FLOAT,
+                UNIQUE (region, realm, name)
+            )
+        """)
+
+        # This table links a guild (Discord server) to a player in our
+        # players table, indicating that if the corresponding player
+        # is updated, that guild should receive a notification. This
+        # allows multiple guilds to watch a single player without
+        # incurring redundant raider.io API queries.
+        self.connection.execute("""
+            CREATE TABLE IF NOT EXISTS watching (
+                guild_id INTEGER,
+                player_id INTEGER,
+                FOREIGN KEY(player_id) REFERENCES players(id),
+                UNIQUE (guild_id, player_id)
+            )
+        """)
+
+        # This table links guilds to one of their text channels. We
+        # use it to determine where player rating notifications should
+        # be posted.
+        self.connection.execute("""
+            CREATE TABLE IF NOT EXISTS channels (
+                guild_id INTEGER,
+                channel_id INTEGER,
+                UNIQUE (guild_id)
+            )
+        """)
 
     def set_default_channel(self, guild_id: int, channel_id: int):
-        """Set notification channel for a guild if unset.
+        """Set notification channel for a guild only if unset.
 
         If a user never invokes the `here` command, the bot should
-        send messages to the first channel they invoke a command in.
+        send notifications to the first channel a command is sent to.
+        We can track this by calling this method every time the %add
+        command is invoked; logically there will be no notifications
+        until after that point.
         """
 
         with self.connection:
@@ -127,28 +160,36 @@ class RaiderDatabase:
             )
 
     def set_channel(self, guild_id: int, channel_id: int):
-        """Set the notification channel for a guild."""
+        """Set the notification channel for a guild.
+
+        This is the explicit alternative to the above which overwrites
+        any previous channel.
+        """
 
         with self.connection:
             cursor = self.connection.cursor()
             cursor.execute(
-                (
-                    "INSERT INTO channels (guild_id, channel_id) VALUES (?, ?)"
-                    "ON CONFLICT (guild_id) DO UPDATE SET channel_id=excluded.channel_id"
-                ),
+                """
+                INSERT INTO channels (guild_id, channel_id)
+                VALUES (?, ?)
+                ON CONFLICT (guild_id) DO UPDATE SET channel_id=excluded.channel_id
+                """,
                 (guild_id, channel_id),
             )
 
     def get_player(self, region: str, realm: str, name: str) -> Optional[Player]:
-        """Add a user to a guild watch list.
+        """Retrieve a player with their raider.io identifiers.
 
-        Creates the player record then creates the watching record.
-        Returns True if both already existed.
+        As mentioned in the definition of the players table, the three
+        parameter are case-insensitive.
         """
 
         cursor = self.connection.cursor()
         cursor.execute(
-            "SELECT id, region, realm, name, rating FROM players WHERE region=? AND realm=? AND name=?",
+            """
+            SELECT id, region, realm, name, rating FROM players
+            WHERE region=? AND realm=? AND name=?
+            """,
             (region, realm, name),
         )
 
@@ -156,39 +197,61 @@ class RaiderDatabase:
         return Player(*result) if result else None
 
     def get_watched_players_by_guild(self, guild_id: int = None) -> Iterator[Player]:
-        """Iterate through all players watched by a guild."""
+        """Iterate through all players watched by a specified guild."""
 
         cursor = self.connection.cursor()
-        cursor.execute("""
+
+        # Select all players where there's at least one watch list
+        # entry pointing to their id; we SELECT DISTINCT because JOIN
+        # will yield a row for every watching guild.
+        cursor.execute(
+            """
             SELECT DISTINCT id, region, realm, name, rating
-            FROM players INNER JOIN watching ON players.id=watching.player_id
+            FROM watching LEFT JOIN players ON watching.player_id=players.id
             WHERE guild_id=?;
-        """, (guild_id,))
+            """,
+            (guild_id,),
+        )
+        # For example, if you have player A watched by guilds X and Y,
+        # and player B watched by nobody, you'll get two rows back:
+        #
+        #   A X
+        #   A Y
+        #
+        # We only care about individual players that show up in the
+        # results here.
 
         for row in cursor.fetchall():
             yield Player(*row)
 
     def get_watched_players(self) -> Iterator[Player]:
-        """Iterate through all players being watched."""
+        """Iterate through all players watched by any guild."""
 
         cursor = self.connection.cursor()
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT DISTINCT id, region, realm, name, rating
-            FROM players INNER JOIN watching ON watching.player_id=players.id;
-        """)
+            FROM watching LEFT JOIN players ON watching.player_id=players.id;
+            """
+        )
 
         for row in cursor.fetchall():
             yield Player(*row)
 
     def get_channels(self, player_id: int) -> Iterator[int]:
-        """Get all channels to notify if a player rating changes."""
+        """Get all channels we should notify of a player update."""
 
         cursor = self.connection.cursor()
-        cursor.execute("""
+
+        # Similar logic to the above, exercise for the reader.
+        cursor.execute(
+            """
             SELECT channel_id
             FROM channels LEFT JOIN watching ON channels.guild_id=watching.guild_id 
             WHERE player_id=?;
-        """, (player_id,))
+            """,
+            (player_id,),
+        )
 
         for row in cursor.fetchall():
             yield row[0]
@@ -198,10 +261,18 @@ class RaiderDatabase:
 
         with self.connection:
             cursor = self.connection.cursor()
+
+            # Update rating if we're trying to add a duplicate record
             cursor.execute(
-                "INSERT OR IGNORE INTO players (region, realm, name, rating) VALUES (?, ?, ?, ?)",
-                (region, realm, name, rating)
+                """
+                INSERT INTO players (region, realm, name, rating)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT (region, realm, name) DO UPDATE SET rating=excluded.rating
+                """,
+                (region, realm, name, rating),
             )
+
+            # Get the player ID that was just inserted
             if cursor.rowcount > 0:
                 cursor.execute("SELECT last_insert_rowid()")
                 return Player(cursor.fetchone()[0], region, realm, name, rating)
@@ -228,7 +299,7 @@ class RaiderDatabase:
         with self.connection:
             cursor = self.connection.cursor()
             cursor.execute(
-                "DELETE FROM players WHERE id NOT IN (SELECT DISTINCT player_id FROM watching);"
+                "DELETE FROM players WHERE id NOT IN (SELECT DISTINCT player_id FROM watching)"
             )
             return cursor.rowcount
 
@@ -300,6 +371,12 @@ class Raider(commands.Cog):
             )
         )
 
+    def message_leaderboard_empty(self) -> str:
+        return "it's a little bit empty in here..."
+
+    def message_here(self) -> str:
+        return "rating notifications will be posted to this channel!"
+
     @commands.command(name="rating")
     async def command_rating(self, context: commands.Context, region: str, realm: str, name: str):
         """Query the rating directly from raider.io"""
@@ -358,7 +435,7 @@ class Raider(commands.Cog):
                 f"{i}. {player.name}: {round(player.rating, 1)}"
                 for i, player in enumerate(players, start=1)
             )
-        ) or "It's a little bit empty in here..."
+        ) or self.message_leaderboard_empty()
 
         embed = disnake.Embed(
             title="Mythic+ Leaderboard",
@@ -377,7 +454,7 @@ class Raider(commands.Cog):
         """Set notification channel."""
 
         self.database.set_channel(context.guild.id, context.channel.id)
-        await context.send("rating notifications will be posted to this channel!")
+        await context.send(self.message_here())
 
     async def cog_command_error(self, context: commands.Context, error: Exception):
         """Write argument and internal errors as message."""
