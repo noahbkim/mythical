@@ -147,6 +147,19 @@ def main():
             await context.send(f"stopped watching {cursor.rowcount} players")
 
     @bot.command()
+    async def leaderboard(context: commands.Context):
+        """Show participating guild members in order of ratings."""
+
+        cursor = database.cursor()
+        cursor.execute("SELECT name, rating FROM players WHERE guild=?", (context.guild.id,))
+        results = list(cursor.fetchall())
+        results.sort(key=lambda name, rating: rating, reverse=True)
+        lines = []
+        for i, (name, rating) in enumerate(results):
+            lines.append(f"{i + 1}. {name} ({rating})")
+        await context.send("\n".join(lines))
+
+    @bot.command()
     async def here(context: commands.Context):
         """Set the output channel for the bot."""
 
