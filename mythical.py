@@ -414,8 +414,6 @@ class Raider(commands.Cog):
     async def command_remove(self, context: commands.Context, region: str, realm: str, name: str):
         """Stop watching a player."""
 
-        self.database.set_default_channel(context.guild.id, context.channel.id)
-
         player = self.database.get_player(region, realm, name)
         if player is None:
             await context.send(f"error: specified player {name} does not exist!")
@@ -515,6 +513,7 @@ def main():
     config.read("mythical.conf")
     client_id = config["discord"]["client_id"]
 
+    # Print an add link based on configuration
     print(
         "https://discord.com/api/oauth2/authorize"
         f"?client_id={client_id}"
