@@ -153,7 +153,7 @@ def main():
         cursor = database.cursor()
         cursor.execute("SELECT name, rating FROM players WHERE guild=?", (context.guild.id,))
         results = list(cursor.fetchall())
-        results.sort(key=lambda name, rating: rating, reverse=True)
+        results.sort(key=lambda pair: pair[1], reverse=True)
         lines = []
         for i, (name, rating) in enumerate(results):
             lines.append(f"{i + 1}. {name} ({rating})")
