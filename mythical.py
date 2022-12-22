@@ -360,7 +360,7 @@ class Raider(commands.Cog):
         ) or "It's a little bit empty in here..."
 
         embed = disnake.Embed(
-            title="Server Mythic+ Leaderboard",
+            title="Mythic+ Leaderboard",
             description=leaderboard,
             color=0xF0C43F,
             timestamp=datetime.datetime.now(),
