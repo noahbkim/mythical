@@ -357,7 +357,11 @@ class Raider(commands.Cog):
     def message_rating_change(self, player: Player, new_rating: float, data: dict) -> str:
         return f"player {player.name} has new mythic+ rating {round(player.rating, 1)} → {round(new_rating, 1)}"
 
-    def message_leaderboard(self, first: Player) -> str:
+    def message_leaderboard(self, players: list[Player]) -> str:
+        if len(players) == 0:
+            return ""
+
+        first = players[0]
         return random.choice(
             (
                 f"{first.name} needs to go outside",
@@ -442,8 +446,10 @@ class Raider(commands.Cog):
             timestamp=datetime.datetime.now(),
         )
 
-        if len(players) > 0:
-            embed.set_footer(text=self.message_leaderboard(players[0]))
+        # Allow the footer to be empty, in which case we don't set it
+        footer = self.message_leaderboard(players)
+        if footer:
+            embed.set_footer(text=footer)
 
         await context.send(embed=embed)
 
