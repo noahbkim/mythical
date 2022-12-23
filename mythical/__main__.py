@@ -12,13 +12,16 @@ from disnake.ext import commands
 import configparser
 import sqlite3
 
-from mythical.raider import RaiderCog, RaiderTracker
-from mythical.faceit import FaceitCog
-from mythical.valorant import ValorantCog
+from mythical.bot import Bot
+from mythical.plugin.raider import RaiderPlugin
+# from mythical.faceit import FaceitCog
+# from mythical.valorant import ValorantCog
 
-
-intents = disnake.Intents(messages=True, message_content=True, reactions=True, guilds=True)
-bot = commands.Bot(command_prefix="%", intents=intents)
+connection = sqlite3.connect("mythical.sqlite3")
+intents = disnake.Intents(messages=True, message_content=True, reactions=True, guilds=True, members=True)
+bot = Bot("%", intents=intents, plugins={
+    "raider": RaiderPlugin(connection),
+})
 
 config = configparser.ConfigParser()
 config.read("mythical.conf")
@@ -32,7 +35,7 @@ print(
     "&scope=bot"
 )
 
-bot.add_cog(RaiderCog(bot, RaiderTracker(sqlite3.connect("mythical.sqlite3"), prefix="raider")))
+# bot.add_cog(RaiderCog(bot, RaiderTracker(sqlite3.connect("mythical.sqlite3"), prefix="raider")))
 # bot.add_cog(FaceitCog(bot, config["faceit"]["api_key"]))
 # bot.add_cog(ValorantCog(bot, config["valorant"]["username"], config["valorant"]["password"]))
 bot.run(config["discord"]["token"])

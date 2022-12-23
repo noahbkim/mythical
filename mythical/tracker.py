@@ -1,7 +1,7 @@
 import abc
 import sqlite3
 import dataclasses
-from typing import Any, Generic, TypeVar, Iterator, List, Type, Tuple, Optional
+from typing import Generic, TypeVar, Iterator, Type, Tuple, Optional
 
 
 @dataclasses.dataclass
@@ -9,17 +9,26 @@ class Player:
     """Base player object."""
 
     id: int
-    discord_id: Optional[int]
 
     class Meta:
-        fields: Tuple[str, ...] = ("id", "discord_id")
-        schema: Tuple[str, ...] = (
-            "id INTEGER PRIMARY KEY AUTOINCREMENT",
-            "discord_id INTEGER",
-        )
+        fields: Tuple[str, ...]
+        schema: Tuple[str, ...]
 
 
 T = TypeVar("T", bound=Player)
+
+
+@dataclasses.dataclass(frozen=True)
+class SpectatedPlayer(Generic[T]):
+    player: T
+    user_id: int
+
+
+@dataclasses.dataclass(frozen=True)
+class SpectatorChannel:
+    guild_id: int
+    channel_id: int
+    user_id: Optional[int]
 
 
 class Tracker(Generic[T], metaclass=abc.ABCMeta):
@@ -31,18 +40,18 @@ class Tracker(Generic[T], metaclass=abc.ABCMeta):
     connection: sqlite3.Connection
     prefix: str
 
-    _players_name: str
-    _spectators_name: str
-    _channels_name: str
+    _players: str
+    _spectators: str
+    _channels: str
 
     def __init__(self, connection: sqlite3.Connection, prefix: str):
         """Set the table prefix for this app."""
 
         self.connection = connection
         self.prefix = prefix
-        self._players_name = f"{self.prefix}_players"
-        self._spectators_name = f"{self.prefix}_spectators"
-        self._channels_name = f"{self.prefix}_channels"
+        self._players = f"{self.prefix}_players"
+        self._spectators = f"{self.prefix}_spectators"
+        self._channels = f"{self.prefix}_channels"
 
         # Setup
         self.create_players_table()
@@ -58,7 +67,8 @@ class Tracker(Generic[T], metaclass=abc.ABCMeta):
         # fields are also case-insensitive (per the raider.io API).
         self.connection.execute(
             f"""
-            CREATE TABLE IF NOT EXISTS {self._players_name} (
+            CREATE TABLE IF NOT EXISTS {self._players} (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
                 {", ".join(self.Meta.model.Meta.schema)}
             )
             """
@@ -70,14 +80,13 @@ class Tracker(Generic[T], metaclass=abc.ABCMeta):
         with self.connection:
             cursor = self.connection.cursor()
 
-            # id should always be first
-            fields = self.Meta.model.Meta.fields[1:]
+            fields = self.Meta.model.Meta.fields
             values = tuple(kwargs[field] for field in fields)
 
             # Update rating if we're trying to add a duplicate record
             cursor.execute(
                 f"""
-                INSERT OR IGNORE INTO players ({", ".join(fields)})
+                INSERT OR IGNORE INTO {self._players} ({", ".join(fields)})
                 VALUES ({", ".join(("?",) * len(fields))})
                 """,
                 values,
@@ -86,7 +95,7 @@ class Tracker(Generic[T], metaclass=abc.ABCMeta):
             # Get the player ID that was just inserted
             if cursor.rowcount > 0:
                 cursor.execute("SELECT last_insert_rowid()")
-                return Player(id=cursor.fetchone(), **kwargs)
+                return self.Meta.model(id=cursor.fetchone()[0], **kwargs)
             else:
                 return None
 
@@ -99,17 +108,42 @@ class Tracker(Generic[T], metaclass=abc.ABCMeta):
         cursor = self.connection.cursor()
         cursor.execute(
             f"""
-            SELECT {self.Meta.model.Meta.fields} FROM {self._players_name}
+            SELECT {", ".join(("id", *self.Meta.model.Meta.fields))}
+            FROM {self._players}
             WHERE {" AND ".join(f"{key}=?" for key in keys)}
             """,
             values,
         )
 
         result = cursor.fetchone()
-        return self.Meta.model(**dict(zip(self.Meta.model.Meta.fields, result))) if result else None
+        if result is None:
+            return None
 
-    def get_players_watched_by_guild(self, guild_id: int = None) -> Iterator[T]:
-        """Iterate through all players watched by a specified guild."""
+        return self.Meta.model(**dict(zip(("id", *self.Meta.model.Meta.fields), result)))
+
+    def get_player_with_user_id(self, guild_id: int, user_id: int) -> Optional[Player]:
+        """Get from informal spectator tagging."""
+
+        cursor = self.connection.cursor()
+        cursor.execute(
+            f"""
+            SELECT {", ".join(("id", *self.Meta.model.Meta.fields))}
+            FROM {self._spectators}
+            LEFT JOIN {self._players}
+            ON {self._spectators}.player_id={self._players}.id
+            WHERE guild_id=? AND user_id=?
+            """,
+            (guild_id, user_id),
+        )
+
+        result = cursor.fetchone()
+        if result is None:
+            return None
+
+        return self.Meta.model(**dict(zip(("id", *self.Meta.model.Meta.fields), result)))
+
+    def get_players_spectated_by_guild(self, guild_id: int = None) -> Iterator[SpectatedPlayer[T]]:
+        """Iterate through all players spectated by a specified guild."""
 
         cursor = self.connection.cursor()
 
@@ -118,16 +152,16 @@ class Tracker(Generic[T], metaclass=abc.ABCMeta):
         # will yield a row for every watching guild.
         cursor.execute(
             f"""
-            SELECT DISTINCT {", ".join(self.Meta.model.Meta.fields)}
-            FROM {self._spectators_name}
-            LEFT JOIN {self._players_name} 
-            ON {self._spectators_name}.player_id={self._players_name}.id
+            SELECT DISTINCT {", ".join(("id", *self.Meta.model.Meta.fields))}, user_id
+            FROM {self._spectators}
+            LEFT JOIN {self._players} 
+            ON {self._spectators}.player_id={self._players}.id
             WHERE guild_id=?;
             """,
             (guild_id,),
         )
-        # For example, if you have player A watched by guilds X and Y,
-        # and player B watched by nobody, you'll get two rows back:
+        # For example, if you have player A spectated by guilds X and Y,
+        # and player B spectated by nobody, you'll get two rows back:
         #
         #   A X
         #   A Y
@@ -136,25 +170,28 @@ class Tracker(Generic[T], metaclass=abc.ABCMeta):
         # results here.
 
         for row in cursor.fetchall():
-            yield self.Meta.model(**dict(zip(self.Meta.model.Meta.fields, row)))
+            yield SpectatedPlayer(
+                self.Meta.model(**dict(zip(("id", *self.Meta.model.Meta.fields), row))),
+                row[-1],
+            )
 
-    def get_watched_players(self) -> Iterator[Any]:
-        """Iterate through all players watched by any guild."""
+    def get_spectated_players(self) -> Iterator[T]:
+        """Iterate through all players spectated by any guild."""
 
         cursor = self.connection.cursor()
         cursor.execute(
             f"""
-            SELECT DISTINCT {", ".join(self.Meta.model.Meta.fields)}
-            FROM {self._spectators_name} 
-            LEFT JOIN {self._players_name} 
-            ON {self._spectators_name}.player_id={self._players_name}.id;
+            SELECT DISTINCT {", ".join(("id", *self.Meta.model.Meta.fields))}
+            FROM {self._spectators} 
+            LEFT JOIN {self._players} 
+            ON {self._spectators}.player_id={self._players}.id;
             """
         )
 
         for row in cursor.fetchall():
-            yield self.Meta.model(**dict(zip(self.Meta.model.Meta.fields, row)))
+            yield self.Meta.model(**dict(zip(("id", *self.Meta.model.Meta.fields), row)))
 
-    def delete_players_unwatched(self) -> int:
+    def delete_players_without_spectator(self) -> int:
         """Remove all player rows with no watching guilds.
 
         Should be called periodically to keep the size of the database
@@ -165,8 +202,8 @@ class Tracker(Generic[T], metaclass=abc.ABCMeta):
             cursor = self.connection.cursor()
             cursor.execute(
                 f"""
-                DELETE FROM {self._players_name} 
-                WHERE id NOT IN (SELECT DISTINCT player_id FROM {self._spectators_name})
+                DELETE FROM {self._players} 
+                WHERE id NOT IN (SELECT DISTINCT player_id FROM {self._spectators})
                 """
             )
             return cursor.rowcount
@@ -181,23 +218,24 @@ class Tracker(Generic[T], metaclass=abc.ABCMeta):
         # incurring redundant raider.io API queries.
         self.connection.execute(
             f"""
-            CREATE TABLE IF NOT EXISTS {self._spectators_name} (
-                guild_id INTEGER,
-                player_id INTEGER,
-                FOREIGN KEY(player_id) REFERENCES {self._players_name}(id),
+            CREATE TABLE IF NOT EXISTS {self._spectators} (
+                guild_id INTEGER NOT NULL,
+                player_id INTEGER NOT NULL,
+                user_id INTEGER,
+                FOREIGN KEY(player_id) REFERENCES {self._players}(id),
                 UNIQUE (guild_id, player_id)
             )
             """
         )
 
-    def create_spectator(self, guild_id: int, player_id: int) -> bool:
+    def create_spectator(self, guild_id: int, player_id: int, user_id: Optional[int] = None) -> bool:
         """Add a player to a guild watch list."""
 
         with self.connection:
             cursor = self.connection.cursor()
             cursor.execute(
-                f"INSERT OR IGNORE INTO {self._spectators_name} (guild_id, player_id) VALUES (?, ?)",
-                (guild_id, player_id),
+                f"INSERT OR IGNORE INTO {self._spectators} (guild_id, player_id, user_id) VALUES (?, ?, ?)",
+                (guild_id, player_id, user_id),
             )
             return cursor.rowcount > 0
 
@@ -207,7 +245,7 @@ class Tracker(Generic[T], metaclass=abc.ABCMeta):
         with self.connection:
             cursor = self.connection.cursor()
             cursor.execute(
-                f"DELETE FROM {self._spectators_name} WHERE guild_id=? AND player_id=?",
+                f"DELETE FROM {self._spectators} WHERE guild_id=? AND player_id=?",
                 (guild_id, player_id),
             )
             return cursor.rowcount > 0
@@ -220,9 +258,9 @@ class Tracker(Generic[T], metaclass=abc.ABCMeta):
         # be posted.
         self.connection.execute(
             f"""
-            CREATE TABLE IF NOT EXISTS {self._channels_name} (
-                guild_id INTEGER,
-                channel_id INTEGER,
+            CREATE TABLE IF NOT EXISTS {self._channels} (
+                guild_id INTEGER NOT NULL,
+                channel_id INTEGER NOT NULL,
                 UNIQUE (guild_id)
             )
             """
@@ -241,7 +279,7 @@ class Tracker(Generic[T], metaclass=abc.ABCMeta):
         with self.connection:
             cursor = self.connection.cursor()
             cursor.execute(
-                f"INSERT OR IGNORE INTO {self._channels_name} (guild_id, channel_id) VALUES (?, ?)",
+                f"INSERT OR IGNORE INTO {self._channels} (guild_id, channel_id) VALUES (?, ?)",
                 (guild_id, channel_id),
             )
 
@@ -256,14 +294,14 @@ class Tracker(Generic[T], metaclass=abc.ABCMeta):
             cursor = self.connection.cursor()
             cursor.execute(
                 f"""
-                INSERT INTO {self._channels_name} (guild_id, channel_id)
+                INSERT INTO {self._channels} (guild_id, channel_id)
                 VALUES (?, ?)
                 ON CONFLICT (guild_id) DO UPDATE SET channel_id=excluded.channel_id
                 """,
                 (guild_id, channel_id),
             )
 
-    def get_channels(self, player_id: int) -> Iterator[int]:
+    def get_spectator_channels(self, player_id: int) -> Iterator[SpectatorChannel]:
         """Get all channels we should notify of a player update."""
 
         cursor = self.connection.cursor()
@@ -271,14 +309,14 @@ class Tracker(Generic[T], metaclass=abc.ABCMeta):
         # Similar logic to the above, exercise for the reader.
         cursor.execute(
             f"""
-            SELECT channel_id
-            FROM {self._channels_name} 
-            LEFT JOIN {self._spectators_name} 
-            ON {self._channels_name}.guild_id={self._spectators_name}.guild_id 
+            SELECT {self._channels}.guild_id, channel_id, user_id
+            FROM {self._channels} 
+            LEFT JOIN {self._spectators} 
+            ON {self._channels}.guild_id={self._spectators}.guild_id 
             WHERE player_id=?;
             """,
             (player_id,),
         )
 
         for row in cursor.fetchall():
-            yield row[0]
+            yield SpectatorChannel(*row)
