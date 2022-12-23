@@ -112,10 +112,10 @@ class ValorantPlugin(BotPlugin):
             "rating": self.command_rating,
             "elo": self.command_rating,
             "add": self.command_add,
-            # "remove": self.command_remove,
+            "remove": self.command_remove,
             "l": self.command_leaderboard,
             "leaderboard": self.command_leaderboard,
-            # "here": self.command_here,
+            "here": self.command_here,
         }
 
     async def command_rating(self, text: str, message: disnake.Message):
@@ -233,3 +233,9 @@ class ValorantPlugin(BotPlugin):
             ))
 
         await message.channel.send(embed=embed)
+
+    async def command_here(self, text: str, message: disnake.Message):
+        """Set the notification channel for this plugin."""
+
+        self.tracker.set_channel(message.guild.id, message.channel.id)
+        await message.channel.send("Valorant notifications will be posted to this channel!")

@@ -306,4 +306,4 @@ class RaiderPlugin(BotPlugin):
         """Set the notification channel for this plugin."""
 
         self.tracker.set_channel(message.guild.id, message.channel.id)
-        await message.channel.send("raider notifications will be posted to this channel!")
+        await message.channel.send("Raider notifications will be posted to this channel!")
