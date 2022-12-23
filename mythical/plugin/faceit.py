@@ -203,7 +203,8 @@ class FaceitPlugin(BotPlugin):
         """Start background tasks."""
 
         await super().ready(client)
-        self.update.start()
+        if not self.update.is_running():
+            self.update.start()
 
     @tasks.loop(minutes=5)
     async def update(self):
