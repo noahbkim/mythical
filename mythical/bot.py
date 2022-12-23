@@ -1,6 +1,6 @@
 import configparser
 import re
-from typing import Dict, Callable, Tuple, Iterable, Coroutine, Optional
+from typing import Dict, Callable, Tuple, Iterable, Coroutine, Optional, Any
 
 import disnake
 
@@ -29,7 +29,7 @@ class BotPlugin:
     commands: Dict[str, Callable[[str, disnake.Message], Coroutine[None, None, None]]]
     client: disnake.Client
 
-    def configure(self, section: configparser.SectionProxy):
+    def configure(self, section: Optional[configparser.SectionProxy]):
         """Take options from relevant section."""
 
     async def ready(self, client: disnake.Client):
@@ -68,6 +68,20 @@ class Bot(disnake.Client):
         super().__init__(**kwargs)
         self.prefix = prefix
         self.plugins = plugins
+        self.token = None
+
+    def configure(self, config: configparser.ConfigParser):
+        """Propagate config sections to plugins."""
+
+        self.token = config["discord"]["token"]
+        for name, plugin in self.plugins.items():
+            plugin.configure(config[name] if config.has_section(name) else None)
+
+    def run(self, *args: Any, **kwargs: Any) -> None:
+        """Pass token if it's been configured."""
+
+        token = {"token": self.token} if self.token is not None else {}
+        return super().run(*args, **kwargs, **token)
 
     async def on_ready(self):
         """Set up each plugin."""

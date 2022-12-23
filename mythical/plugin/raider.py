@@ -6,7 +6,6 @@ import datetime
 import random
 import sqlite3
 from dataclasses import dataclass
-from typing import Optional, Iterator
 
 from ..tracker import Tracker, Player
 from ..bot import BotPlugin, BotError, get_member, try_get_member
@@ -107,6 +106,8 @@ def _format_time(ms: int) -> str:
 class RaiderPlugin(BotPlugin):
     """Provide subcommands related to raider.io API."""
 
+    tracker: RaiderTracker
+
     def __init__(self, connection: sqlite3.Connection):
         """Set command handlers."""
 
@@ -125,7 +126,8 @@ class RaiderPlugin(BotPlugin):
         """Start background tasks."""
 
         await super().ready(client)
-        self.update.start()
+        if not self.update.is_running():
+            self.update.start()
 
     @tasks.loop(minutes=5)
     async def update(self):

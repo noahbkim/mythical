@@ -14,20 +14,22 @@ import sqlite3
 
 from mythical.bot import Bot
 from mythical.plugin.raider import RaiderPlugin
-# from mythical.faceit import FaceitCog
+from mythical.plugin.faceit import FaceitPlugin
 # from mythical.valorant import ValorantCog
 
 connection = sqlite3.connect("mythical.sqlite3")
 intents = disnake.Intents(messages=True, message_content=True, reactions=True, guilds=True, members=True)
 bot = Bot("%", intents=intents, plugins={
     "raider": RaiderPlugin(connection),
+    "faceit": FaceitPlugin(connection),
 })
 
 config = configparser.ConfigParser()
 config.read("mythical.conf")
-client_id = config["discord"]["client_id"]
+bot.configure(config)
 
 # Print an add link based on configuration
+client_id = config["discord"]["client_id"]
 print(
     "https://discord.com/api/oauth2/authorize"
     f"?client_id={client_id}"
@@ -35,7 +37,4 @@ print(
     "&scope=bot"
 )
 
-# bot.add_cog(RaiderCog(bot, RaiderTracker(sqlite3.connect("mythical.sqlite3"), prefix="raider")))
-# bot.add_cog(FaceitCog(bot, config["faceit"]["api_key"]))
-# bot.add_cog(ValorantCog(bot, config["valorant"]["username"], config["valorant"]["password"]))
-bot.run(config["discord"]["token"])
+bot.run()
