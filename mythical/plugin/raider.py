@@ -200,8 +200,7 @@ class RaiderPlugin(BotPlugin):
                     player = self.tracker.get_player_with_user_id(message.guild.id, member.id)
 
             if player is None:
-                await message.channel.send("failed to find matching player!")
-                return
+                raise BotError("Error: failed to find matching player!")
 
         # Go through raider.io identifier
         elif len(parts) == 3:
@@ -210,7 +209,7 @@ class RaiderPlugin(BotPlugin):
             if player is None:
                 data = get_all_mythic_plus_best_runs(parts[0], parts[1], parts[2])
                 rating = compute_mythic_plus_rating(data)
-                await message.channel.send(f"player {parts[2]} has mythic+ rating {round(rating, 1)}")
+                await message.channel.send(f"{parts[2]} has mythic+ rating {round(rating, 1)}")
                 return
 
         else:
@@ -218,7 +217,7 @@ class RaiderPlugin(BotPlugin):
 
         data = get_all_mythic_plus_best_runs(player.region, player.realm, player.name)
         rating = compute_mythic_plus_rating(data)
-        await message.channel.send(f"player {player.name} has mythic+ rating {round(rating, 1)}")
+        await message.channel.send(f"{player.name} has mythic+ rating {round(rating, 1)}")
         await self.update_player(player, rating, data)
 
     async def command_add(self, text: str, message: disnake.Message):
@@ -243,7 +242,7 @@ class RaiderPlugin(BotPlugin):
             player = self.tracker.create_player(region=region, realm=realm, name=name, rating=rating)
 
         created = self.tracker.create_spectator(message.guild.id, player.id, user_id)
-        action = "started watching" if created else "already watching"
+        action = "Started watching" if created else "Already watching"
         await message.channel.send(f"{action} {player.name} ({round(player.rating, 1)} rating)")
 
     async def command_remove(self, text: str, message: disnake.Message):
@@ -258,7 +257,7 @@ class RaiderPlugin(BotPlugin):
             raise BotError(f"couldn't find player {parts[2]}!")
 
         deleted = self.tracker.delete_spectator(message.guild.id, player.id)
-        action = "stopped watching" if deleted else "wasn't watching"
+        action = "Stopped watching" if deleted else "Wasn't watching"
         await message.channel.send(f"{action} {player.name}")
 
     async def command_leaderboard(self, text: str, message: disnake.Message):

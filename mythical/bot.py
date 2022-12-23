@@ -92,7 +92,7 @@ class Bot(disnake.Client):
         try:
             await plugin.handle(rest, message)
         except BotError as error:
-            await message.reply(f"error: {error}")
+            await message.reply(f"Error: {error}")
 
 
 def try_get_member(argument: str, message: disnake.Message) -> Optional[disnake.Member]:
