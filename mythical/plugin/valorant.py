@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import Optional, Tuple
 
 from ..tracker import Tracker, Player
-from ..bot import BotPlugin, BotError, get_member
+from ..bot import BotPlugin, BotError, get_member, try_get_member
 
 
 def get_valorant_account(name: str, tag: str) -> dict:
@@ -28,6 +28,15 @@ def get_valorant_rank(region: str, nickname: str, tag: str) -> dict:
     response = requests.get(f"https://api.henrikdev.xyz/valorant/v1/mmr/{region}/{nickname}/{tag}")
     if response.status_code != 200:
         raise BotError(f"couldn't find player {nickname}#{tag}!")
+    return response.json()
+
+
+def get_valorant_rank_by_riot_id(region: str, riot_id: str) -> dict:
+    """Access free API."""
+
+    response = requests.get(f"https://api.henrikdev.xyz/valorant/v1/by-puuid/mmr/{region}/{riot_id}")
+    if response.status_code != 200:
+        raise BotError(f"couldn't find player {riot_id}!")
     return response.json()
 
 
@@ -122,13 +131,29 @@ class ValorantPlugin(BotPlugin):
         """Respond to rating request."""
 
         parts = text.split(maxsplit=1)
-        if len(parts) == 2:
-            region, username = parts
-        else:
-            raise BotError("expected `region` and `username`")  #, `username`, or `server member`!")
+        if len(parts) == 1:
+            member = try_get_member(parts[0], message)
+            if member is not None:
+                player = self.tracker.get_player_with_user_id(message.guild.id, member.id)
+                username = player.username
+                riot_id = player.riot_id
+                region = player.region
+            else:
+                username = parts[0]
+                name, tag = parse_username(username)
+                account_data = get_valorant_account(name, tag)
+                riot_id = account_data["data"]["puuid"]
+                region = account_data["data"]["region"]
+            data = get_valorant_rank_by_riot_id(region, riot_id)
 
-        name, tag = parse_username(username)
-        data = get_valorant_rank(region, name, tag)
+        elif len(parts) == 2:
+            region, username = parts
+            name, tag = parse_username(username)
+            data = get_valorant_rank(region, name, tag)
+
+        else:
+            raise BotError("expected `username`, `server member`, or `region` and `username`")
+
         rank = data["data"]["currenttierpatched"]
         rr = data["data"]["elo"]
         rr_mod = data["data"]["ranking_in_tier"]

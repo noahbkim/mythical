@@ -121,7 +121,7 @@ class Tracker(Generic[T], metaclass=abc.ABCMeta):
 
         return self.Meta.model(**dict(zip(("id", *self.Meta.model.Meta.fields), result)))
 
-    def get_player_with_user_id(self, guild_id: int, user_id: int) -> Optional[Player]:
+    def get_player_with_user_id(self, guild_id: int, user_id: int) -> Optional[T]:
         """Get from informal spectator tagging."""
 
         cursor = self.connection.cursor()
