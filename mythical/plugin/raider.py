@@ -139,7 +139,7 @@ class RaiderPlugin(BotPlugin):
     async def update_player(self, player: RaiderPlayer, new_rating: float, data: dict):
         """Update a player's rating and print their"""
 
-        if new_rating != player.rating or True:
+        if new_rating != player.rating:
             self.tracker.set_rating(player.id, new_rating)
 
             for item in self.tracker.get_spectator_channels(player.id):
