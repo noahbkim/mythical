@@ -7,7 +7,6 @@ other Python files.
 """
 
 import disnake
-from disnake.ext import commands
 
 import configparser
 import sqlite3
