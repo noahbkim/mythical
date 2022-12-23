@@ -218,7 +218,7 @@ class RaiderPlugin(BotPlugin):
 
         data = get_all_mythic_plus_best_runs(player.region, player.realm, player.name)
         rating = compute_mythic_plus_rating(data)
-        await message.channel.send(f"player {parts[2]} has mythic+ rating {round(rating, 1)}")
+        await message.channel.send(f"player {player.name} has mythic+ rating {round(rating, 1)}")
         await self.update_player(player, rating, data)
 
     async def command_add(self, text: str, message: disnake.Message):
