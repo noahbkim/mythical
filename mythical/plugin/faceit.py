@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from ..tracker import Tracker, Player
-from ..bot import BotPlugin, BotError, get_member, try_get_member
+from ..bot import BotPlugin, BotError, get_member
 
 
 def get_faceit_elo(key: str, nickname: str) -> dict:

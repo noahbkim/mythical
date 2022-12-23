@@ -15,13 +15,14 @@ import sqlite3
 from mythical.bot import Bot
 from mythical.plugin.raider import RaiderPlugin
 from mythical.plugin.faceit import FaceitPlugin
-# from mythical.valorant import ValorantCog
+from mythical.plugin.valorant import ValorantPlugin
 
 connection = sqlite3.connect("mythical.sqlite3")
 intents = disnake.Intents(messages=True, message_content=True, reactions=True, guilds=True, members=True)
 bot = Bot("%", intents=intents, plugins={
     "raider": RaiderPlugin(connection),
     "faceit": FaceitPlugin(connection),
+    "valorant": ValorantPlugin(connection),
 })
 
 config = configparser.ConfigParser()
