@@ -12,8 +12,9 @@ from disnake.ext import commands
 import configparser
 import sqlite3
 
-from mythical.raider import RaiderCog, RaiderDatabase
+from mythical.raider import RaiderCog, RaiderTracker
 from mythical.faceit import FaceitCog
+from mythical.valorant import ValorantCog
 
 
 intents = disnake.Intents(messages=True, message_content=True, reactions=True, guilds=True)
@@ -31,6 +32,7 @@ print(
     "&scope=bot"
 )
 
-bot.add_cog(RaiderCog(bot, RaiderDatabase(sqlite3.connect("mythical.sqlite3"))))
-bot.add_cog(FaceitCog(bot, config["faceit"]["api_key"]))
+bot.add_cog(RaiderCog(bot, RaiderTracker(sqlite3.connect("mythical.sqlite3"), prefix="raider")))
+# bot.add_cog(FaceitCog(bot, config["faceit"]["api_key"]))
+# bot.add_cog(ValorantCog(bot, config["valorant"]["username"], config["valorant"]["password"]))
 bot.run(config["discord"]["token"])
