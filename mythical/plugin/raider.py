@@ -134,8 +134,13 @@ class RaiderPlugin(BotPlugin):
         """Update all players, notify if new rating."""
 
         for player in self.tracker.get_spectated_players():
-            data = get_all_mythic_plus_best_runs(player.region, player.realm, player.name)
-            new_rating = compute_mythic_plus_rating(data)
+            try:
+                data = get_all_mythic_plus_best_runs(player.region, player.realm, player.name)
+                new_rating = compute_mythic_plus_rating(data)
+            except BotError as error:
+                print(f"error while retrieving data for {player}: {error}")
+                continue
+
             await self.update_player(player, new_rating, data)
 
     async def update_player(self, player: RaiderPlayer, new_rating: float, data: dict):
