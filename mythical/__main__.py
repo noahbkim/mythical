@@ -18,7 +18,15 @@ from mythical.plugin.valorant import ValorantPlugin
 from mythical.plugin.height import HeightPlugin
 
 connection = sqlite3.connect("mythical.sqlite3")
-intents = disnake.Intents(messages=True, message_content=True, reactions=True, guilds=True, members=True)
+intents = disnake.Intents(
+    messages=True,
+    message_content=True,
+    reactions=True,
+    guilds=True,
+    members=True,
+    presences=True,
+)
+
 bot = Bot("%", intents=intents, plugins={
     "raider": RaiderPlugin(connection),
     "faceit": FaceitPlugin(connection),
