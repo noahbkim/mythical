@@ -41,7 +41,7 @@ class HeightPlugin(BotPlugin):
 
         heights = []
         for member in message.channel.members:
-            if member.status == disnake.Status.online:
+            if member.status != disnake.Status.offline:
                 heights.append((member.name, get_height(member.name)))
         heights.sort(key=lambda pair: pair[1], reverse=True)
 
