@@ -109,7 +109,6 @@ class ValorantPlugin(BotPlugin):
     """Provide subcommands related to Faceit API."""
 
     tracker: ValorantTracker
-    key: str
 
     def __init__(self, connection: sqlite3.Connection):
         """Set command handlers."""

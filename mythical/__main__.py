@@ -15,6 +15,7 @@ from mythical.bot import Bot
 from mythical.plugin.raider import RaiderPlugin
 from mythical.plugin.faceit import FaceitPlugin
 from mythical.plugin.valorant import ValorantPlugin
+from mythical.plugin.height import HeightPlugin
 
 connection = sqlite3.connect("mythical.sqlite3")
 intents = disnake.Intents(messages=True, message_content=True, reactions=True, guilds=True, members=True)
@@ -22,6 +23,7 @@ bot = Bot("%", intents=intents, plugins={
     "raider": RaiderPlugin(connection),
     "faceit": FaceitPlugin(connection),
     "valorant": ValorantPlugin(connection),
+    "height": HeightPlugin(),
 })
 
 config = configparser.ConfigParser()
