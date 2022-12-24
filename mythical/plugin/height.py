@@ -12,9 +12,7 @@ def imperial(inches: int) -> str:
 
 
 def get_height(name: str) -> int:
-    if "arvid" in name.lower() or "moopey" in name.lower():
-        return 4 * 12 + 10
-    return random.randint(5 * 12, 10 * 12)
+    return int(random.normalvariate(70, 3))
 
 
 class HeightPlugin(BotPlugin):

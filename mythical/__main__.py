@@ -27,12 +27,16 @@ intents = disnake.Intents(
     presences=True,
 )
 
-bot = Bot("%", intents=intents, plugins={
-    "raider": RaiderPlugin(connection),
-    "faceit": FaceitPlugin(connection),
-    "valorant": ValorantPlugin(connection),
-    "height": HeightPlugin(),
-})
+bot = Bot(
+    "%",
+    intents=intents,
+    plugins={
+        "raider": RaiderPlugin(connection),
+        "faceit": FaceitPlugin(connection),
+        "valorant": ValorantPlugin(connection),
+        "height": HeightPlugin(),
+    },
+)
 
 config = configparser.ConfigParser()
 config.read("mythical.conf")
