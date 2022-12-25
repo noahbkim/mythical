@@ -122,6 +122,26 @@ def _format_time(ms: int) -> str:
     return f"{int(h):02}:{int(m):02}:{round(s):02}" if h > 0 else f"{int(m):02}:{round(s):02}"
 
 
+def create_rating_embed(data: dict, rating: float) -> disnake.Embed:
+    """Used when rating command invoked."""
+
+    name = data["name"]
+
+    embed = disnake.Embed(
+        title=f"{name} has mythic+ rating {round(rating, 1)}",
+        description=describe_recent_runs(data),
+        timestamp=datetime.datetime.now(),
+    )
+
+    character = " ".join((data["gender"], data["class"], data["race"])).lower().capitalize()
+    embed.add_field("Character", character, inline=True)
+    embed.add_field("Spec", data["active_spec_name"], inline=True)
+    embed.add_field("Raider", data["profile_url"], inline=False)
+    embed.set_thumbnail(url=data["thumbnail_url"])
+
+    return embed
+
+
 class RaiderPlugin(BotPlugin):
     """Provide subcommands related to raider.io API."""
 
@@ -222,7 +242,7 @@ class RaiderPlugin(BotPlugin):
             if player is None:
                 data = get_all_mythic_plus_best_runs(parts[0], parts[1], parts[2])
                 rating = compute_mythic_plus_rating(data)
-                await message.channel.send(f"{parts[2]} has mythic+ rating {round(rating, 1)}")
+                await message.channel.send(embed=create_rating_embed(data, rating))
                 return
 
         else:
@@ -231,20 +251,7 @@ class RaiderPlugin(BotPlugin):
         data = get_all_mythic_plus_best_runs(player.region, player.realm, player.name)
         rating = compute_mythic_plus_rating(data)
 
-        embed = disnake.Embed(
-            title=f"{player.name} has mythic+ rating {round(rating, 1)}",
-            description=describe_recent_runs(data),
-            timestamp=datetime.datetime.now(),
-        )
-
-        character = " ".join((data["gender"], data["class"], data["race"])).lower().capitalize()
-        embed.add_field("Character", character, inline=True)
-        embed.add_field("Spec", data["active_spec_name"], inline=True)
-        embed.add_field("Raider", data["profile_url"], inline=False)
-
-        embed.set_thumbnail(url=data["thumbnail_url"])
-
-        await message.channel.send(embed=embed)
+        await message.channel.send(embed=create_rating_embed(data, rating))
         await self.update_player(player, rating, data)
 
     async def command_add(self, text: str, message: disnake.Message):
@@ -266,7 +273,12 @@ class RaiderPlugin(BotPlugin):
         if player is None:
             data = get_all_mythic_plus_best_runs(region, realm, name)
             rating = compute_mythic_plus_rating(data)
-            player = self.tracker.create_player(region=region, realm=realm, name=name, rating=rating)
+            player = self.tracker.create_player(
+                region=data["region"],
+                realm=data["realm"],
+                name=data["name"],
+                rating=rating,
+            )
 
         created = self.tracker.create_spectator(message.guild.id, player.id, user_id)
         action = "Started watching" if created else "Already watching"
