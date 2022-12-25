@@ -17,6 +17,9 @@ from mythical.plugin.faceit import FaceitPlugin
 from mythical.plugin.valorant import ValorantPlugin
 from mythical.plugin.height import HeightPlugin
 
+config = configparser.ConfigParser()
+config.read("mythical.conf")
+
 connection = sqlite3.connect("mythical.sqlite3")
 intents = disnake.Intents(
     messages=True,
@@ -28,7 +31,7 @@ intents = disnake.Intents(
 )
 
 bot = Bot(
-    "%%",
+    config["discord"].get("prefix", "%"),
     intents=intents,
     plugins={
         "raider": RaiderPlugin(connection),
@@ -38,8 +41,6 @@ bot = Bot(
     },
 )
 
-config = configparser.ConfigParser()
-config.read("mythical.conf")
 bot.configure(config)
 
 # Print an add link based on configuration
