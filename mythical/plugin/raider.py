@@ -208,9 +208,10 @@ class RaiderPlugin(BotPlugin):
                 )
 
                 embed.add_field(name="Previous", value=str(round(player.rating, 1)), inline=True)
-                embed.add_field(name="Current", value=str(round(new_rating, 1)), inline=True)
                 embed.add_field(name="Gain", value=str(round(new_rating - player.rating, 1)), inline=True)
-
+                embed.add_field("Raider", data["profile_url"], inline=False)
+                embed.set_thumbnail(url=data["thumbnail_url"])
+                
                 await channel.send(embed=embed)
 
     @tasks.loop(hours=24)
