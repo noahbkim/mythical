@@ -6,6 +6,7 @@ import datetime
 import random
 import sqlite3
 from dataclasses import dataclass
+from typing import Optional
 
 from ..tracker import Tracker, Player
 from ..bot import BotPlugin, BotError, get_member, try_get_member
@@ -46,6 +47,24 @@ def compute_mythic_plus_rating(data: dict) -> float:
     for run in data["mythic_plus_alternate_runs"]:
         score += 0.5 * run["score"]
     return score
+
+
+def describe_recent_runs(data: dict) -> Optional[str]:
+    """Describe their most recent run."""
+
+    recent_runs = data.get("mythic_plus_recent_runs")
+    if recent_runs:
+        run = recent_runs[0]
+        dungeon = run["dungeon"]
+        mythic_level = run["mythic_level"]
+        clear_time = _format_time(run["clear_time_ms"])
+        affixes = ", ".join(affix["name"] for affix in run["affixes"])
+        return (
+            f"Their most recent run was {dungeon} +{mythic_level} in {clear_time}"
+            f" with affixes {affixes}."
+        )
+    else:
+        return None
 
 
 @dataclass
@@ -161,22 +180,9 @@ class RaiderPlugin(BotPlugin):
                     if member is not None:
                         member_name = f" ({member.name})"
 
-                description = None
-                recent_runs = data.get("mythic_plus_recent_runs")
-                if recent_runs:
-                    run = recent_runs[0]
-                    dungeon = run["dungeon"]
-                    mythic_level = run["mythic_level"]
-                    clear_time = _format_time(run["clear_time_ms"])
-                    affixes = ", ".join(affix["name"] for affix in run["affixes"])
-                    description = (
-                        f"Their most recent run was {dungeon} +{mythic_level} in {clear_time}"
-                        f" with affixes {affixes}."
-                    )
-
                 embed = disnake.Embed(
                     title=f"{player.name} reached mythic+ rating {round(new_rating, 1)}",
-                    description=description,
+                    description=describe_recent_runs(data),
                     color=0x77dd77,
                     timestamp=datetime.datetime.now(),
                 )
@@ -224,7 +230,21 @@ class RaiderPlugin(BotPlugin):
 
         data = get_all_mythic_plus_best_runs(player.region, player.realm, player.name)
         rating = compute_mythic_plus_rating(data)
-        await message.channel.send(f"{player.name} has mythic+ rating {round(rating, 1)}")
+
+        embed = disnake.Embed(
+            title=f"{player.name} has mythic+ rating {round(rating, 1)}",
+            description=describe_recent_runs(data),
+            timestamp=datetime.datetime.now(),
+        )
+
+        character = " ".join((data["gender"], data["class"], data["race"])).lower().capitalize()
+        embed.add_field("Character", character, inline=True)
+        embed.add_field("Spec", data["active_spec_name"], inline=True)
+        embed.add_field("Raider", data["profile_url"], inline=False)
+
+        embed.set_thumbnail(url=data["thumbnail_url"])
+
+        await message.channel.send(embed=embed)
         await self.update_player(player, rating, data)
 
     async def command_add(self, text: str, message: disnake.Message):

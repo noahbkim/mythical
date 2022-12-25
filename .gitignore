@@ -1,3 +1,5 @@
 mythical.conf
 *.sqlite3
 .idea/
+__pycache__
+*.pyc

@@ -28,7 +28,7 @@ intents = disnake.Intents(
 )
 
 bot = Bot(
-    "%",
+    "%%",
     intents=intents,
     plugins={
         "raider": RaiderPlugin(connection),
