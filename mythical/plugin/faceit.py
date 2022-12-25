@@ -321,11 +321,9 @@ class FaceitPlugin(BotPlugin):
 
         embed = disnake.Embed(
             title=f"{nickname} has {elo} Faceit elo",
-            description=" ".join(
-                (
-                    f"They've played {matches} matches with a {wins}% winrate, {kd} K/D, and {headshots}% HS."
-                    f"They've hit {aces} aces."
-                )
+            description=(
+                f"They've played {matches} matches with a {wins}% winrate, {kd} K/D, and {headshots}% HS."
+                f" They've hit {aces} aces."
             ),
             color=0xff5722,
             timestamp=datetime.datetime.now(),
