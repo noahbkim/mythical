@@ -30,11 +30,11 @@ def get_faceit_elo(key: str, nickname: str) -> dict:
     return response.json()
 
 
-def get_faceit_last_match(key: str, player_id: str) -> Optional[dict]:
-    """Get the most recent match."""
+def get_faceit_history(key: str, player_id: str, limit: int) -> list:
+    """Get match history."""
 
     response = requests.get(
-        f"https://open.faceit.com/data/v4/players/{player_id}/history?game=csgo&offset=0&limit=1",
+        f"https://open.faceit.com/data/v4/players/{player_id}/history?game=csgo&offset=0&limit={limit}",
         headers={
             "Accept": "application/json",
             "Authorization": f"Bearer {key}",
@@ -45,10 +45,31 @@ def get_faceit_last_match(key: str, player_id: str) -> Optional[dict]:
         raise BotError(f"invalid player id!")
 
     data = response.json()
-    if not data["items"]:
-        return None
+    return data["items"]
 
-    return data["items"][0]
+
+def get_faceit_last_match(key: str, player_id: str) -> Optional[dict]:
+    """Get the most recent match."""
+
+    data = get_faceit_history(key, player_id, 1)
+    return data[0]
+
+
+def get_faceit_stats(key: str, player_id: str, game_id: str) -> dict:
+    """Get just stats from match ID."""
+
+    response = requests.get(
+        f"https://open.faceit.com/data/v4/players/{player_id}/stats/{game_id}",
+        headers={
+            "Accept": "application/json",
+            "Authorization": f"Bearer {key}",
+        },
+    )
+
+    if response.status_code != 200:
+        raise BotError(f"invalid match id!")
+
+    return response.json()
 
 
 def get_faceit_match_statistics(key: str, match_id: str) -> Optional[dict]:
@@ -122,7 +143,6 @@ def format_result(data: dict, won: bool) -> str:
     scores = map(int, data["rounds"][0]["round_stats"]["Score"].split(" / "))
     score = ":".join(map(str, sorted(scores, reverse=won)))
     return f"won {score}" if won else f"lost {score}"
-
 
 
 @dataclass
@@ -287,7 +307,35 @@ class FaceitPlugin(BotPlugin):
         nickname = data["nickname"]
         level = data["games"]["csgo"]["skill_level"]
         elo = data["games"]["csgo"]["faceit_elo"]
-        await message.channel.send(f"{nickname} is level {level} ({elo} elo)")
+        player_id = data["player_id"]
+        stats = get_faceit_stats(self.key, player_id, "csgo")
+        matches = stats["lifetime"]["Matches"]
+        wins = stats["lifetime"]["Win Rate %"]
+        headshots = stats["lifetime"]["Average Headshots %"]
+        kd = stats["lifetime"]["Average K/D Ratio"]
+        results = stats["lifetime"]["Recent Results"]
+        aces = 0
+
+        for segment in stats["segments"]:
+            aces += int(segment["stats"]["Penta Kills"])
+
+        embed = disnake.Embed(
+            title=f"{nickname} has {elo} Faceit elo",
+            description=" ".join(
+                (
+                    f"They've played {matches} matches with a {wins}% winrate, {kd} K/D, and {headshots}% HS."
+                    f"They've hit {aces} aces."
+                )
+            ),
+            color=0xff5722,
+            timestamp=datetime.datetime.now(),
+        )
+        embed.add_field("Level", str(level), inline=True)
+        embed.add_field("Recent", "".join("W" if r == "1" else "L" for r in results), inline=True)
+        embed.add_field("Page", data["faceit_url"].format(lang=data["settings"]["language"]), inline=False)
+        embed.set_thumbnail(data["avatar"])
+
+        await message.channel.send(embed=embed)
 
         player = self.tracker.get_player(nickname=text)
         if player is not None:
