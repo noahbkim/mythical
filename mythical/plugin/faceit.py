@@ -310,7 +310,8 @@ class FaceitPlugin(BotPlugin):
         player_id = data["player_id"]
         stats = get_faceit_stats(self.key, player_id, "csgo")
         matches = stats["lifetime"]["Matches"]
-        wins = stats["lifetime"]["Win Rate %"]
+        winrate = stats["lifetime"]["Win Rate %"]
+        wins = stats["lifetime"]["Wins"]
         headshots = stats["lifetime"]["Average Headshots %"]
         kd = stats["lifetime"]["Average K/D Ratio"]
         results = stats["lifetime"]["Recent Results"]
@@ -322,13 +323,14 @@ class FaceitPlugin(BotPlugin):
         embed = disnake.Embed(
             title=f"{nickname} has {elo} Faceit elo",
             description=(
-                f"They've played {matches} matches with a {wins}% winrate, {kd} K/D, and {headshots}% HS."
+                f"They've played {matches} matches with a {winrate}% winrate, {kd} K/D, and {headshots}% HS."
                 f" They've hit {aces} aces."
             ),
             color=0xff5722,
             timestamp=datetime.datetime.now(),
         )
         embed.add_field("Level", str(level), inline=True)
+        embed.add_field("Wins", str(wins), inline=True)
         embed.add_field("Recent", "".join("W" if r == "1" else "L" for r in results), inline=True)
         embed.add_field("Page", data["faceit_url"].format(lang=data["settings"]["language"]), inline=False)
         embed.set_thumbnail(data["avatar"])
