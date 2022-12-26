@@ -40,6 +40,15 @@ def get_valorant_rank_by_riot_id(region: str, riot_id: str) -> dict:
     return response.json()
 
 
+def get_valorant_match_history(region: str, riot_id: str) -> dict:
+    """Get last 5 matches."""
+
+    response = requests.get(f"https://api.henrikdev.xyz/valorant/v3/by-puuid/matches/{region}/{riot_id}")
+    if response.status_code != 200:
+        raise BotError(f"couldn't find player {riot_id}!")
+    return response.json()
+
+
 @dataclass
 class ValorantPlayer(Player):
     """This is a convenience class that mirrors the database record.
@@ -125,6 +134,100 @@ class ValorantPlugin(BotPlugin):
             "leaderboard": self.command_leaderboard,
             "here": self.command_here,
         }
+
+    @tasks.loop(minutes=5)
+    async def update(self):
+        """Update all players, notify if new rating."""
+
+        for player in self.tracker.get_spectated_players():
+            data = get_valorant_rank_by_riot_id(player.region, player.riot_id)
+            await self.update_player(player, data)
+
+    async def ready(self, client: disnake.Client):
+        """Start background tasks."""
+
+        await super().ready(client)
+        if not self.update.is_running():
+            self.update.start()
+
+    async def update_player(self, player: ValorantPlayer, data: dict):
+        """Update a player's level and elo and notify."""
+
+        new_rank = data["data"]["currenttierpatched"]
+        new_rr = data["data"]["elo"]
+        new_rr_mod = data["data"]["ranking_in_tier"]
+
+        if new_rr != player.rr:
+            self.tracker.set_level(player.id, new_rank, new_rr, new_rr_mod)
+
+            for item in self.tracker.get_spectator_channels(player.id):
+                channel = self.client.get_channel(item.channel_id)
+                if channel is None:
+                    print(f"invalid channel for guild {item.guild_id}: {item.channel_id}")
+                    continue
+
+                member_name = ""
+                if item.user_id is not None:
+                    member = channel.guild.get_member(item.user_id)
+                    if member is not None:
+                        member_name = f" ({member.name})"
+
+                description = []
+                last_matches = get_valorant_match_history(player.region, player.riot_id)
+                last_match = last_matches["data"][0]
+                map_name = last_match["metadata"]["map"]
+                kills = 0
+                deaths = 0
+                assists = 0
+                score = 0
+                headshots = 0
+                damage = 0
+                team = "Red"
+                character = ""
+                for player_data in last_match["players"]["all_players"]:
+                    if player_data["puuid"] == player.riot_id:
+                        team = player_data["team"].lower()
+                        score = player_data["stats"]["score"]
+                        kills = player_data["stats"]["kills"]
+                        deaths = player_data["stats"]["deaths"]
+                        assists = player_data["stats"]["assists"]
+                        headshots = player_data["stats"]["headshots"]
+                        damage = player_data["damage_made"]
+                        character = player_data["character"]
+
+                rounds_won = last_match["teams"][team]["rounds_won"]
+                rounds_lost = last_match["teams"][team]["rounds_lost"]
+                rounds = rounds_won + rounds_lost
+                result = "won" if rounds_won > rounds_lost else "lost" if rounds_won < rounds_lost else "tied"
+
+                description.append(
+                    f"Their {result} their last match {rounds_won}:{rounds_lost} on {map_name}."
+                    f" They had a {kills}/{assists}/{deaths} KAD with {round(headshots / kills * 100, 1)}% HS, "
+                    f" {round(score / rounds, 1)} ACS, and {round(damage / rounds, 1)} ADR."
+                )
+
+                if new_rank != player.rank:
+                    description.append(f"They are now {new_rank}.")
+
+                reached = (
+                    f"gained {new_rr - player.rr}"
+                    if new_rr > player.rr else
+                    f"lost {player.rr - new_rr}"
+                )
+                embed = disnake.Embed(
+                    title=f"{player.username} {reached} rr",
+                    description=" ".join(description),
+                    color=disnake.Colour.brand_green() if new_rr > player.rr else disnake.Colour.brand_red(),
+                    timestamp=datetime.datetime.now(),
+                )
+
+                sign = "+" if new_rr >= player.rr else "-"
+                embed.add_field(name="Previous", value=str(round(player.rr, 1)), inline=True)
+                embed.add_field(name="Change", value=f"{sign}{round(new_rr - player.rr, 1)}", inline=True)
+                embed.add_field(name="Character", value=character)
+                embed.set_thumbnail(data["data"]["images"]["triangle_up"])
+
+                await channel.send(embed=embed)
 
     async def command_rating(self, text: str, message: disnake.Message):
         """Respond to rating request."""
