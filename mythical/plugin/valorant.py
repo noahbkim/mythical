@@ -4,10 +4,9 @@ import requests
 
 import random
 import datetime
-import configparser
 import sqlite3
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Tuple
 
 from ..tracker import Tracker, Player
 from ..bot import BotPlugin, BotError, get_member, try_get_member
@@ -43,7 +42,10 @@ def get_valorant_rank_by_riot_id(region: str, riot_id: str) -> dict:
 def get_valorant_match_history(region: str, riot_id: str) -> dict:
     """Get last 5 matches."""
 
-    response = requests.get(f"https://api.henrikdev.xyz/valorant/v3/by-puuid/matches/{region}/{riot_id}")
+    response = requests.get(
+        f"https://api.henrikdev.xyz/valorant/v3/by-puuid/matches/{region}/{riot_id}?filter=competitive"
+    )
+
     if response.status_code != 200:
         raise BotError(f"couldn't find player {riot_id}!")
     return response.json()
@@ -157,8 +159,53 @@ class ValorantPlugin(BotPlugin):
         new_rr = data["data"]["elo"]
         new_rr_mod = data["data"]["ranking_in_tier"]
 
-        if new_rr != player.rr:
+        if new_rr != player.rr or True:
             self.tracker.set_level(player.id, new_rank, new_rr, new_rr_mod)
+
+            account_data = get_valorant_account(data["data"]["name"], data["data"]["tag"])
+
+            description = []
+            last_matches = get_valorant_match_history(player.region, player.riot_id)
+            last_match = last_matches["data"][0]
+            map_name = last_match["metadata"]["map"]
+            kills = 0
+            deaths = 0
+            assists = 0
+            score = 0
+            headshots = 0
+            damage = 0
+            team = "Red"
+            character = ""
+            for player_data in last_match["players"]["all_players"]:
+                if player_data["puuid"] == player.riot_id:
+                    team = player_data["team"].lower()
+                    score = player_data["stats"]["score"]
+                    kills = player_data["stats"]["kills"]
+                    deaths = player_data["stats"]["deaths"]
+                    assists = player_data["stats"]["assists"]
+                    headshots = player_data["stats"]["headshots"]
+                    damage = player_data["damage_made"]
+                    character = player_data["character"]
+
+            rounds_won = last_match["teams"][team]["rounds_won"]
+            rounds_lost = last_match["teams"][team]["rounds_lost"]
+            rounds = rounds_won + rounds_lost
+            result = "won" if rounds_won > rounds_lost else "lost" if rounds_won < rounds_lost else "tied"
+
+            description.append(
+                f"Their {result} their last match {rounds_won}:{rounds_lost} on {map_name}."
+                f" They had a {kills}/{assists}/{deaths} KAD with {round(headshots / kills * 100, 1)}% HS, "
+                f" {round(score / rounds, 1)} ACS, and {round(damage / rounds, 1)} ADR."
+            )
+
+            if new_rank != player.rank:
+                description.append(f"They are now {new_rank}.")
+
+            reached = (
+                f"gained {new_rr - player.rr}"
+                if new_rr > player.rr else
+                f"lost {player.rr - new_rr}"
+            )
 
             for item in self.tracker.get_spectator_channels(player.id):
                 channel = self.client.get_channel(item.channel_id)
@@ -172,48 +219,6 @@ class ValorantPlugin(BotPlugin):
                     if member is not None:
                         member_name = f" ({member.name})"
 
-                description = []
-                last_matches = get_valorant_match_history(player.region, player.riot_id)
-                last_match = last_matches["data"][0]
-                map_name = last_match["metadata"]["map"]
-                kills = 0
-                deaths = 0
-                assists = 0
-                score = 0
-                headshots = 0
-                damage = 0
-                team = "Red"
-                character = ""
-                for player_data in last_match["players"]["all_players"]:
-                    if player_data["puuid"] == player.riot_id:
-                        team = player_data["team"].lower()
-                        score = player_data["stats"]["score"]
-                        kills = player_data["stats"]["kills"]
-                        deaths = player_data["stats"]["deaths"]
-                        assists = player_data["stats"]["assists"]
-                        headshots = player_data["stats"]["headshots"]
-                        damage = player_data["damage_made"]
-                        character = player_data["character"]
-
-                rounds_won = last_match["teams"][team]["rounds_won"]
-                rounds_lost = last_match["teams"][team]["rounds_lost"]
-                rounds = rounds_won + rounds_lost
-                result = "won" if rounds_won > rounds_lost else "lost" if rounds_won < rounds_lost else "tied"
-
-                description.append(
-                    f"Their {result} their last match {rounds_won}:{rounds_lost} on {map_name}."
-                    f" They had a {kills}/{assists}/{deaths} KAD with {round(headshots / kills * 100, 1)}% HS, "
-                    f" {round(score / rounds, 1)} ACS, and {round(damage / rounds, 1)} ADR."
-                )
-
-                if new_rank != player.rank:
-                    description.append(f"They are now {new_rank}.")
-
-                reached = (
-                    f"gained {new_rr - player.rr}"
-                    if new_rr > player.rr else
-                    f"lost {player.rr - new_rr}"
-                )
                 embed = disnake.Embed(
                     title=f"{player.username} {reached} rr",
                     description=" ".join(description),
@@ -225,7 +230,7 @@ class ValorantPlugin(BotPlugin):
                 embed.add_field(name="Previous", value=str(round(player.rr, 1)), inline=True)
                 embed.add_field(name="Change", value=f"{sign}{round(new_rr - player.rr, 1)}", inline=True)
                 embed.add_field(name="Character", value=character)
-                embed.set_thumbnail(data["data"]["images"]["triangle_up"])
+                embed.set_thumbnail(account_data["data"]["card"]["small"])
 
                 await channel.send(embed=embed)
 
