@@ -159,7 +159,7 @@ class ValorantPlugin(BotPlugin):
         new_rr = data["data"]["elo"]
         new_rr_mod = data["data"]["ranking_in_tier"]
 
-        if new_rr != player.rr or True:
+        if new_rr != player.rr:
             self.tracker.set_level(player.id, new_rank, new_rr, new_rr_mod)
 
             account_data = get_valorant_account(data["data"]["name"], data["data"]["tag"])
