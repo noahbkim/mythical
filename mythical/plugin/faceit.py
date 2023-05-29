@@ -285,9 +285,10 @@ class FaceitPlugin(BotPlugin):
                     timestamp=datetime.datetime.now(),
                 )
 
+                sign = "+" if new_elo >= player.elo else "-"
                 embed.add_field(name="Previous", value=str(round(player.elo, 1)), inline=True)
                 embed.add_field(name="Current", value=str(round(new_elo, 1)), inline=True)
-                embed.add_field(name="Change", value=str(round(new_elo - player.elo, 1)), inline=True)
+                embed.add_field(name="Change", value=sign + str(round(new_elo - player.elo, 1)), inline=True)
 
                 await channel.send(embed=embed)
 
