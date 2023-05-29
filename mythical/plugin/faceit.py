@@ -248,7 +248,6 @@ class FaceitPlugin(BotPlugin):
                     print(f"invalid channel for guild {item.guild_id}: {item.channel_id}")
                     continue
 
-                member_name = ""
                 if item.user_id is not None:
                     member = channel.guild.get_member(item.user_id)
                     if member is not None:
@@ -318,11 +317,12 @@ class FaceitPlugin(BotPlugin):
         for segment in stats["segments"]:
             aces += int(segment["stats"]["Penta Kills"])
 
+        page_url = data["faceit_url"].format(lang=data["settings"]["language"])
         embed = disnake.Embed(
             title=f"{nickname} has {elo} Faceit elo",
             description=(
-                f"They've played {matches} matches with a {winrate}% winrate, {kd} K/D, and {headshots}% HS."
-                f" They've hit {aces} aces."
+                f"They've played [{matches} matches]({page_url}) with a {winrate}% winrate,"
+                f" {kd} K/D, and {headshots}% HS. They've hit {aces} aces."
             ),
             color=0xff5722,
             timestamp=datetime.datetime.now(),
@@ -330,8 +330,9 @@ class FaceitPlugin(BotPlugin):
         embed.add_field("Level", str(level), inline=True)
         embed.add_field("Wins", str(wins), inline=True)
         embed.add_field("Recent", "".join("W" if r == "1" else "L" for r in results), inline=True)
-        embed.add_field("Page", data["faceit_url"].format(lang=data["settings"]["language"]), inline=False)
         embed.set_thumbnail(data["avatar"])
+
+        # TODO: messages that include member_name
 
         await message.channel.send(embed=embed)
 
