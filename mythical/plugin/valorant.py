@@ -137,7 +137,7 @@ class ValorantPlugin(BotPlugin):
             "here": self.command_here,
         }
 
-    @tasks.loop(minutes=5)
+    @tasks.loop(minutes=15)
     async def update(self):
         """Update all players, notify if new rating."""
 

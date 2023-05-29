@@ -168,7 +168,7 @@ class RaiderPlugin(BotPlugin):
         if not self.update.is_running():
             self.update.start()
 
-    @tasks.loop(minutes=5)
+    @tasks.loop(minutes=15)
     async def update(self):
         """Update all players, notify if new rating."""
 
