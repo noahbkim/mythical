@@ -255,7 +255,6 @@ class FaceitPlugin(BotPlugin):
                         member_name = f" ({member.name})"
 
                 description = []
-                match_url = None
 
                 last_match = get_faceit_last_match(self.key, data["player_id"])
                 if last_match:
@@ -266,7 +265,7 @@ class FaceitPlugin(BotPlugin):
                     player_statistics = get_player_statistics(last_match_statistics, player.nickname)
                     result = format_result(last_match_statistics, get_won(last_match, player.nickname))
                     description.append(
-                        f"{player.nickname} {result} on {match_map}"
+                        f"{player.nickname} [{result} on {match_map}]({match_url})"
                         f" with a K/D of {player_statistics.kad} ({player_statistics.kd}, {player_statistics.kpr} KPR)"
                         f" and {player_statistics.hsp}% HS."
                     )
@@ -289,8 +288,6 @@ class FaceitPlugin(BotPlugin):
                 embed.add_field(name="Previous", value=str(round(player.elo, 1)), inline=True)
                 embed.add_field(name="Current", value=str(round(new_elo, 1)), inline=True)
                 embed.add_field(name="Change", value=str(round(new_elo - player.elo, 1)), inline=True)
-                if match_url is not None:
-                    embed.add_field(name="Match room", value=match_url, inline=False)
 
                 await channel.send(embed=embed)
 
