@@ -194,7 +194,7 @@ class ValorantPlugin(BotPlugin):
 
             description.append(
                 f"Their {result} their last match {rounds_won}:{rounds_lost} on {map_name}."
-                f" They had a {kills}/{assists}/{deaths} KAD with {round(headshots / kills * 100, 1)}% HS, "
+                f" They had a {kills}/{assists}/{deaths} KAD with {round(headshots, 1)}% HS, "
                 f" {round(score / rounds, 1)} ACS, and {round(damage / rounds, 1)} ADR."
             )
 
@@ -226,9 +226,10 @@ class ValorantPlugin(BotPlugin):
                     timestamp=datetime.datetime.now(),
                 )
 
-                sign = "+" if new_rr >= player.rr else "-"
                 embed.add_field(name="Previous", value=str(round(player.rr, 1)), inline=True)
-                embed.add_field(name="Change", value=f"{sign}{round(new_rr - player.rr, 1)}", inline=True)
+
+                sign = "+" if new_rr >= player.rr else "-"
+                embed.add_field(name="Change", value=f"{sign}{round(abs(new_rr - player.rr), 1)}", inline=True)
                 embed.add_field(name="Character", value=character)
                 embed.set_thumbnail(account_data["data"]["card"]["small"])
 
