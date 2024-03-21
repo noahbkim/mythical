@@ -110,7 +110,7 @@ class SiegePlugin(BotPlugin):
         new_season_kills = player_data.ranked_profile.kills
         new_season_deaths = player_data.ranked_profile.deaths
 
-        if player.rank_points != new_rank_points or True:
+        if player.rank_points != new_rank_points:
             self.tracker.update_player(
                 player.id,
                 name=new_name,
