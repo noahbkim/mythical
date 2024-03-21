@@ -34,7 +34,7 @@ def get_faceit_history(key: str, player_id: str, limit: int) -> list:
     """Get match history."""
 
     response = requests.get(
-        f"https://open.faceit.com/data/v4/players/{player_id}/history?game=csgo&offset=0&limit={limit}",
+        f"https://open.faceit.com/data/v4/players/{player_id}/history?game=cs2&offset=0&limit={limit}",
         headers={
             "Accept": "application/json",
             "Authorization": f"Bearer {key}",
@@ -52,7 +52,9 @@ def get_faceit_last_match(key: str, player_id: str) -> Optional[dict]:
     """Get the most recent match."""
 
     data = get_faceit_history(key, player_id, 1)
-    return data[0]
+    if data:
+        return data[0]
+    return None
 
 
 def get_faceit_stats(key: str, player_id: str, game_id: str) -> dict:
@@ -231,12 +233,19 @@ class FaceitPlugin(BotPlugin):
         """Update all players, notify if new rating."""
 
         for player in self.tracker.get_spectated_players():
-            data = get_faceit_elo(self.key, player.nickname)
-            level = data["games"]["csgo"]["skill_level"]
-            elo = data["games"]["csgo"]["faceit_elo"]
-            await self.update_player(player, level, elo, data)
+            try:
+                data = get_faceit_elo(self.key, player.nickname)
+                try:
+                    level = data["games"]["cs2"]["skill_level"]
+                    elo = data["games"]["cs2"]["faceit_elo"]
+                    avatar = data["avatar"]
+                except KeyError:
+                    continue
+                await self.update_player(player, level, elo, data, avatar=avatar)
+            except BotError as error:
+                print(error)
 
-    async def update_player(self, player: FaceitPlayer, new_level: int, new_elo: int, data: dict):
+    async def update_player(self, player: FaceitPlayer, new_level: int, new_elo: int, data: dict, avatar: str = ""):
         """Update a player's level and elo and notify."""
 
         if new_elo != player.elo:
@@ -264,31 +273,37 @@ class FaceitPlugin(BotPlugin):
                     player_statistics = get_player_statistics(last_match_statistics, player.nickname)
                     result = format_result(last_match_statistics, get_won(last_match, player.nickname))
                     description.append(
-                        f"{player.nickname} [{result} on {match_map}]({match_url})"
-                        f" with a K/D of {player_statistics.kad} ({player_statistics.kd}, {player_statistics.kpr} KPR)"
-                        f" and {player_statistics.hsp}% HS."
+                        f"{player.nickname} [{result} on {match_map}]({match_url})."
+                        f" They went **{player_statistics.kad}** ({player_statistics.kd} KD, {player_statistics.kpr} KPR)"
+                        f" with **{player_statistics.hsp}%** HS."
                     )
+
+                sign = "+" if new_elo >= player.elo else "-"
+                description.append(f"Their current ELO is **{str(round(new_elo))}** ({sign}{round(abs(new_elo - player.elo))}).")
 
                 if new_level > player.level:
                     description.append(f"They are now level {new_level}.")
 
                 reached = (
                     f"gained {new_elo - player.elo}"
-                    if new_elo > player.elo else
+                    if new_elo >= player.elo else
                     f"lost {player.elo - new_elo}"
                 )
                 embed = disnake.Embed(
                     title=f"{player.nickname} {reached} faceit elo",
                     description=" ".join(description),
-                    color=disnake.Colour.brand_green() if new_elo > player.elo else disnake.Colour.brand_red(),
-                    timestamp=datetime.datetime.now(),
+                    color=disnake.Colour.brand_green() if new_elo >= player.elo else disnake.Colour.brand_red(),
+                    # timestamp=datetime.datetime.now(),
                 )
 
-                embed.add_field(name="Previous", value=str(round(player.elo, 1)), inline=True)
-                embed.add_field(name="Current", value=str(round(new_elo, 1)), inline=True)
+                if avatar:
+                    embed.set_thumbnail(avatar)
 
-                sign = "+" if new_elo >= player.elo else "-"
-                embed.add_field(name="Change", value=sign + str(round(abs(new_elo - player.elo), 1)), inline=True)
+                # embed.add_field(name="Previous", value=str(round(player.elo, 1)), inline=True)
+                # embed.add_field(name="Current", value=str(round(new_elo, 1)), inline=True)
+
+                # sign = "+" if new_elo >= player.elo else "-"
+                # embed.add_field(name="Change", value=sign + str(round(abs(new_elo - player.elo), 1)), inline=True)
 
                 await channel.send(embed=embed)
 
@@ -303,10 +318,10 @@ class FaceitPlugin(BotPlugin):
 
         data = get_faceit_elo(self.key, text)
         nickname = data["nickname"]
-        level = data["games"]["csgo"]["skill_level"]
-        elo = data["games"]["csgo"]["faceit_elo"]
+        level = data["games"]["cs2"]["skill_level"]
+        elo = data["games"]["cs2"]["faceit_elo"]
         player_id = data["player_id"]
-        stats = get_faceit_stats(self.key, player_id, "csgo")
+        stats = get_faceit_stats(self.key, player_id, "cs2")
         matches = stats["lifetime"]["Matches"]
         winrate = stats["lifetime"]["Win Rate %"]
         wins = stats["lifetime"]["Wins"]
@@ -359,8 +374,8 @@ class FaceitPlugin(BotPlugin):
         player = self.tracker.get_player(nickname=nickname)
         if player is None:
             data = get_faceit_elo(self.key, nickname)
-            level = data["games"]["csgo"]["skill_level"]
-            elo = data["games"]["csgo"]["faceit_elo"]
+            level = data["games"]["cs2"]["skill_level"]
+            elo = data["games"]["cs2"]["faceit_elo"]
             player = self.tracker.create_player(nickname=nickname, level=level, elo=elo)
 
         created = self.tracker.create_spectator(message.guild.id, player.id, user_id)
