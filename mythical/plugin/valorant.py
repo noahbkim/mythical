@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import Tuple
 
 from ..tracker import Tracker, Player
-from ..bot import BotPlugin, BotError, get_member, try_get_member
+from ..bot import Bot, BotPlugin, BotError, get_member, handle_exception, try_get_member
 
 
 def get_valorant_account(name: str, tag: str) -> dict:
@@ -121,9 +121,10 @@ class ValorantPlugin(BotPlugin):
 
     tracker: ValorantTracker
 
-    def __init__(self, connection: sqlite3.Connection):
+    def __init__(self, bot: Bot, connection: sqlite3.Connection):
         """Set command handlers."""
 
+        super().__init__(bot)
         self.tracker = ValorantTracker(connection, prefix="valorant")
         self.commands = {
             "r": self.command_rating,
@@ -137,7 +138,14 @@ class ValorantPlugin(BotPlugin):
             "here": self.command_here,
         }
 
+    async def on_ready(self):
+        """Start background tasks."""
+
+        if not self.update.is_running():
+            self.update.start()
+
     @tasks.loop(minutes=15)
+    @handle_exception
     async def update(self):
         """Update all players, notify if new rating."""
 
@@ -145,12 +153,12 @@ class ValorantPlugin(BotPlugin):
             data = get_valorant_rank_by_riot_id(player.region, player.riot_id)
             await self.update_player(player, data)
 
-    async def ready(self, client: disnake.Client):
-        """Start background tasks."""
+    @tasks.loop(hours=24)
+    @handle_exception
+    async def cleanup(self):
+        """Remove players that aren't spectated."""
 
-        await super().ready(client)
-        if not self.update.is_running():
-            self.update.start()
+        self.tracker.delete_players_without_spectator()
 
     async def update_player(self, player: ValorantPlayer, data: dict):
         """Update a player's level and elo and notify."""
@@ -208,7 +216,7 @@ class ValorantPlugin(BotPlugin):
             )
 
             for item in self.tracker.get_spectator_channels(player.id):
-                channel = self.client.get_channel(item.channel_id)
+                channel = self.bot.get_channel(item.channel_id)
                 if channel is None:
                     print(f"invalid channel for guild {item.guild_id}: {item.channel_id}")
                     continue

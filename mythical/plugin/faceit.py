@@ -10,10 +10,12 @@ from dataclasses import dataclass
 from typing import Optional
 
 from ..tracker import Tracker, Player
-from ..bot import BotPlugin, BotError, get_member
+from ..bot import Bot, BotPlugin, BotError, get_member, handle_exception
+
+GAME = "cs2"
 
 
-def get_faceit_elo(key: str, nickname: str) -> dict:
+def get_faceit_player(key: str, nickname: str) -> dict:
     """Get retrieve data with ELO and level."""
 
     response = requests.get(
@@ -34,7 +36,11 @@ def get_faceit_history(key: str, player_id: str, limit: int) -> list:
     """Get match history."""
 
     response = requests.get(
+<<<<<<< HEAD
         f"https://open.faceit.com/data/v4/players/{player_id}/history?game=cs2&offset=0&limit={limit}",
+=======
+        f"https://open.faceit.com/data/v4/players/{player_id}/history?game={GAME}&offset=0&limit={limit}",
+>>>>>>> b4a5e426708b0fc9689908088c8ec20dbef9b059
         headers={
             "Accept": "application/json",
             "Authorization": f"Bearer {key}",
@@ -197,9 +203,10 @@ class FaceitPlugin(BotPlugin):
     tracker: FaceitTracker
     key: str
 
-    def __init__(self, connection: sqlite3.Connection):
+    def __init__(self, bot: Bot, connection: sqlite3.Connection):
         """Set command handlers."""
 
+        super().__init__(bot)
         self.tracker = FaceitTracker(connection, prefix="faceit")
         self.commands = {
             "r": self.command_rating,
@@ -221,18 +228,19 @@ class FaceitPlugin(BotPlugin):
 
         self.key = section["key"]
 
-    async def ready(self, client: disnake.Client):
+    async def on_ready(self):
         """Start background tasks."""
 
-        await super().ready(client)
         if not self.update.is_running():
             self.update.start()
 
     @tasks.loop(minutes=15)
+    @handle_exception
     async def update(self):
         """Update all players, notify if new rating."""
 
         for player in self.tracker.get_spectated_players():
+<<<<<<< HEAD
             try:
                 data = get_faceit_elo(self.key, player.nickname)
                 try:
@@ -246,13 +254,28 @@ class FaceitPlugin(BotPlugin):
                 print(error)
 
     async def update_player(self, player: FaceitPlayer, new_level: int, new_elo: int, data: dict, avatar: str = ""):
+=======
+            data = get_faceit_player(self.key, player.nickname)
+            level = data["games"][GAME]["skill_level"]
+            elo = data["games"][GAME]["faceit_elo"]
+            await self.update_player(player, level, elo, data)
+
+    @tasks.loop(hours=24)
+    @handle_exception
+    async def cleanup(self):
+        """Remove players that aren't spectated."""
+
+        self.tracker.delete_players_without_spectator()
+
+    async def update_player(self, player: FaceitPlayer, new_level: int, new_elo: int, data: dict):
+>>>>>>> b4a5e426708b0fc9689908088c8ec20dbef9b059
         """Update a player's level and elo and notify."""
 
         if new_elo != player.elo:
             self.tracker.set_level(player.id, new_level, new_elo)
 
             for item in self.tracker.get_spectator_channels(player.id):
-                channel = self.client.get_channel(item.channel_id)
+                channel = self.bot.get_channel(item.channel_id)
                 if channel is None:
                     print(f"invalid channel for guild {item.guild_id}: {item.channel_id}")
                     continue
@@ -307,21 +330,22 @@ class FaceitPlugin(BotPlugin):
 
                 await channel.send(embed=embed)
 
-    @tasks.loop(hours=24)
-    async def cleanup(self):
-        """Remove players that aren't spectated."""
-
-        self.tracker.delete_players_without_spectator()
-
     async def command_rating(self, text: str, message: disnake.Message):
         """Respond to rating request."""
 
-        data = get_faceit_elo(self.key, text)
+        data = get_faceit_player(self.key, text)
         nickname = data["nickname"]
+<<<<<<< HEAD
         level = data["games"]["cs2"]["skill_level"]
         elo = data["games"]["cs2"]["faceit_elo"]
         player_id = data["player_id"]
         stats = get_faceit_stats(self.key, player_id, "cs2")
+=======
+        level = data["games"][GAME]["skill_level"]
+        elo = data["games"][GAME]["faceit_elo"]
+        player_id = data["player_id"]
+        stats = get_faceit_stats(self.key, player_id, GAME)
+>>>>>>> b4a5e426708b0fc9689908088c8ec20dbef9b059
         matches = stats["lifetime"]["Matches"]
         winrate = stats["lifetime"]["Win Rate %"]
         wins = stats["lifetime"]["Wins"]
@@ -373,9 +397,15 @@ class FaceitPlugin(BotPlugin):
 
         player = self.tracker.get_player(nickname=nickname)
         if player is None:
+<<<<<<< HEAD
             data = get_faceit_elo(self.key, nickname)
             level = data["games"]["cs2"]["skill_level"]
             elo = data["games"]["cs2"]["faceit_elo"]
+=======
+            data = get_faceit_player(self.key, nickname)
+            level = data["games"][GAME]["skill_level"]
+            elo = data["games"][GAME]["faceit_elo"]
+>>>>>>> b4a5e426708b0fc9689908088c8ec20dbef9b059
             player = self.tracker.create_player(nickname=nickname, level=level, elo=elo)
 
         created = self.tracker.create_spectator(message.guild.id, player.id, user_id)

@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from ..tracker import Tracker, Player
-from ..bot import BotPlugin, BotError, get_member, try_get_member
+from ..bot import Bot, BotPlugin, BotError, get_member, handle_exception, try_get_member
 
 
 def get_all_mythic_plus_best_runs(region: str, realm: str, name: str) -> dict:
@@ -147,9 +147,10 @@ class RaiderPlugin(BotPlugin):
 
     tracker: RaiderTracker
 
-    def __init__(self, connection: sqlite3.Connection):
+    def __init__(self, bot: Bot, connection: sqlite3.Connection):
         """Set command handlers."""
 
+        super().__init__(bot)
         self.tracker = RaiderTracker(connection, prefix="raider")
         self.commands = {
             "r": self.command_rating,
@@ -161,14 +162,14 @@ class RaiderPlugin(BotPlugin):
             "here": self.command_here,
         }
 
-    async def ready(self, client: disnake.Client):
+    async def on_ready(self):
         """Start background tasks."""
 
-        await super().ready(client)
         if not self.update.is_running():
             self.update.start()
 
     @tasks.loop(minutes=15)
+    @handle_exception
     async def update(self):
         """Update all players, notify if new rating."""
 
@@ -182,6 +183,13 @@ class RaiderPlugin(BotPlugin):
 
             await self.update_player(player, new_rating, data)
 
+    @tasks.loop(hours=24)
+    @handle_exception
+    async def cleanup(self):
+        """Remove players that aren't spectated."""
+
+        self.tracker.delete_players_without_spectator()
+
     async def update_player(self, player: RaiderPlayer, new_rating: float, data: dict):
         """Update a player's rating and print their"""
 
@@ -189,7 +197,7 @@ class RaiderPlugin(BotPlugin):
             self.tracker.set_rating(player.id, new_rating)
 
             for item in self.tracker.get_spectator_channels(player.id):
-                channel = self.client.get_channel(item.channel_id)
+                channel = self.bot.get_channel(item.channel_id)
                 if channel is None:
                     print(f"invalid channel for guild {item.guild_id}: {item.channel_id}")
                     continue
@@ -213,12 +221,6 @@ class RaiderPlugin(BotPlugin):
                 embed.set_thumbnail(url=data["thumbnail_url"])
 
                 await channel.send(embed=embed)
-
-    @tasks.loop(hours=24)
-    async def cleanup(self):
-        """Remove players that aren't spectated."""
-
-        self.tracker.delete_players_without_spectator()
 
     async def command_rating(self, text: str, message: disnake.Message):
         """Respond to rating request."""
