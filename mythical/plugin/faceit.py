@@ -54,7 +54,9 @@ def get_faceit_last_match(key: str, player_id: str) -> Optional[dict]:
     """Get the most recent match."""
 
     data = get_faceit_history(key, player_id, 1)
-    return data[0]
+    if data:
+        return data[0]
+    return None
 
 
 def get_faceit_stats(key: str, player_id: str, game_id: str) -> dict:
@@ -235,9 +237,13 @@ class FaceitPlugin(BotPlugin):
 
         for player in self.tracker.get_spectated_players():
             data = get_faceit_player(self.key, player.nickname)
-            level = data["games"][GAME]["skill_level"]
-            elo = data["games"][GAME]["faceit_elo"]
-            await self.update_player(player, level, elo, data)
+            try:
+                level = data["games"]["cs2"]["skill_level"]
+                elo = data["games"]["cs2"]["faceit_elo"]
+                avatar = data["avatar"]
+            except KeyError:
+                continue
+            await self.update_player(player, level, elo, data, avatar)
 
     @tasks.loop(hours=24)
     @handle_exception
@@ -246,7 +252,7 @@ class FaceitPlugin(BotPlugin):
 
         self.tracker.delete_players_without_spectator()
 
-    async def update_player(self, player: FaceitPlayer, new_level: int, new_elo: int, data: dict):
+    async def update_player(self, player: FaceitPlayer, new_level: int, new_elo: int, data: dict, avatar: str):
         """Update a player's level and elo and notify."""
 
         if new_elo != player.elo:
@@ -274,31 +280,37 @@ class FaceitPlugin(BotPlugin):
                     player_statistics = get_player_statistics(last_match_statistics, player.nickname)
                     result = format_result(last_match_statistics, get_won(last_match, player.nickname))
                     description.append(
-                        f"{player.nickname} [{result} on {match_map}]({match_url})"
-                        f" with a K/D of {player_statistics.kad} ({player_statistics.kd}, {player_statistics.kpr} KPR)"
-                        f" and {player_statistics.hsp}% HS."
+                        f"{player.nickname} [{result} on {match_map}]({match_url})."
+                        f" They went **{player_statistics.kad}** ({player_statistics.kd} KD, {player_statistics.kpr} KPR)"
+                        f" with **{player_statistics.hsp}%** HS."
                     )
+
+                sign = "+" if new_elo >= player.elo else "-"
+                description.append(f"Their current ELO is **{str(round(new_elo))}** ({sign}{round(abs(new_elo - player.elo))}).")
 
                 if new_level > player.level:
                     description.append(f"They are now level {new_level}.")
 
                 reached = (
                     f"gained {new_elo - player.elo}"
-                    if new_elo > player.elo else
+                    if new_elo >= player.elo else
                     f"lost {player.elo - new_elo}"
                 )
                 embed = disnake.Embed(
                     title=f"{player.nickname} {reached} faceit elo",
                     description=" ".join(description),
-                    color=disnake.Colour.brand_green() if new_elo > player.elo else disnake.Colour.brand_red(),
-                    timestamp=datetime.datetime.now(),
+                    color=disnake.Colour.brand_green() if new_elo >= player.elo else disnake.Colour.brand_red(),
+                    # timestamp=datetime.datetime.now(),
                 )
 
-                embed.add_field(name="Previous", value=str(round(player.elo, 1)), inline=True)
-                embed.add_field(name="Current", value=str(round(new_elo, 1)), inline=True)
+                if avatar:
+                    embed.set_thumbnail(avatar)
 
-                sign = "+" if new_elo >= player.elo else "-"
-                embed.add_field(name="Change", value=sign + str(round(abs(new_elo - player.elo), 1)), inline=True)
+                # embed.add_field(name="Previous", value=str(round(player.elo, 1)), inline=True)
+                # embed.add_field(name="Current", value=str(round(new_elo, 1)), inline=True)
+
+                # sign = "+" if new_elo >= player.elo else "-"
+                # embed.add_field(name="Change", value=sign + str(round(abs(new_elo - player.elo), 1)), inline=True)
 
                 await channel.send(embed=embed)
 
@@ -343,7 +355,7 @@ class FaceitPlugin(BotPlugin):
 
         player = self.tracker.get_player(nickname=text)
         if player is not None:
-            await self.update_player(player, level, elo, data)
+            await self.update_player(player, level, elo, data, data["avatar"])
 
     async def command_add(self, text: str, message: disnake.Message):
         """Start spectating a user."""
