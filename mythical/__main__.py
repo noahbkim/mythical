@@ -34,10 +34,10 @@ bot = Bot(
     config["discord"].get("prefix", "%"),
     intents=intents,
     plugins={
-        "raider": RaiderPlugin(connection),
-        "faceit": FaceitPlugin(connection),
-        "valorant": ValorantPlugin(connection),
-        "height": HeightPlugin(),
+        "raider": lambda b: RaiderPlugin(b, connection),
+        "faceit": lambda b: FaceitPlugin(b, connection),
+        "valorant": lambda b: ValorantPlugin(b, connection),
+        "height": HeightPlugin,
     },
 )
 

@@ -3,7 +3,7 @@ import disnake
 import datetime
 import random
 
-from ..bot import BotPlugin
+from ..bot import Bot, BotPlugin
 
 
 def imperial(inches: int) -> str:
@@ -18,9 +18,10 @@ def get_height(name: str) -> int:
 class HeightPlugin(BotPlugin):
     """Provide subcommands related to Faceit API."""
 
-    def __init__(self):
+    def __init__(self, bot: Bot):
         """Set command handlers."""
 
+        super().__init__(bot)
         self.commands = {
             "r": self.command_rating,
             "rating": self.command_rating,
