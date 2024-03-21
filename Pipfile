@@ -6,6 +6,7 @@ name = "pypi"
 [packages]
 disnake = "*"
 requests = "*"
+siegeapi = "*"
 
 [dev-packages]
 

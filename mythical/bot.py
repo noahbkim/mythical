@@ -150,7 +150,7 @@ class Bot(disnake.Client):
 
         channel = self.get_channel(self.debug_id)
         if channel is not None:
-            await channel.send(f"Error: {exception}\n```{formatted_exception}\nLocals: {formatted_locals}```")
+            await channel.send(f"Error: {exception}\n```{formatted_exception}\nLocals: {formatted_locals[:500]}```")
         else:
             print(f"Could not find channel {self.debug_id}!")
             print(f"Error: {exception}")

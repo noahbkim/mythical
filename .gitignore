@@ -3,3 +3,4 @@ mythical.conf
 .idea/
 __pycache__
 *.pyc
+creds

@@ -121,6 +121,20 @@ class Tracker(Generic[T], metaclass=abc.ABCMeta):
 
         return self.Meta.model(**dict(zip(("id", *self.Meta.model.Meta.fields), result)))
 
+    def update_player(self, player_id: int, **kwargs) -> None:
+        """Update a player's data."""
+
+        with self.connection:
+            cursor = self.connection.cursor()
+            cursor.execute(
+                f"""
+                UPDATE {self._players}
+                SET {", ".join(f"{key}=?" for key in kwargs.keys())}
+                WHERE id=?
+                """,
+                (*kwargs.values(), player_id),
+            )
+
     def get_player_with_user_id(self, guild_id: int, user_id: int) -> Optional[T]:
         """Get from informal spectator tagging."""
 

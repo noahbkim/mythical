@@ -1,3 +1,5 @@
+import sys
+
 import disnake
 from disnake.ext import tasks
 import requests
@@ -218,7 +220,7 @@ class ValorantPlugin(BotPlugin):
             for item in self.tracker.get_spectator_channels(player.id):
                 channel = self.bot.get_channel(item.channel_id)
                 if channel is None:
-                    print(f"invalid channel for guild {item.guild_id}: {item.channel_id}")
+                    print(f"invalid channel for guild {item.guild_id}: {item.channel_id}", file=sys.stderr)
                     continue
 
                 member_name = ""
