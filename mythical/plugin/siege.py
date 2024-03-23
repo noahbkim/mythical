@@ -142,7 +142,7 @@ class SiegePlugin(BotPlugin):
                 kills = new_season_kills - player.season_kills
                 deaths = new_season_deaths - player.season_deaths
                 if kills >= 0 and deaths >= 0:
-                    description.append(f"In their last game they went {kills}/{deaths}.")
+                    description.append(f"In their last game(s) they went {kills}/{deaths}.")
 
                 description.append(f"They are {new_rank_name}.")
 

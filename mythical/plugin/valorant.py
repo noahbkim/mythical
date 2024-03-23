@@ -204,7 +204,7 @@ class ValorantPlugin(BotPlugin):
 
             description.append(
                 f"Their {result} their last match {rounds_won}:{rounds_lost} on {map_name}."
-                f" They had a {kills}/{assists}/{deaths} KAD with {round(headshots, 1)}% HS, "
+                f" They had a {kills}/{assists}/{deaths} KAD with {round(headshots, 1)}% HS,"
                 f" {round(score / rounds, 1)} ACS, and {round(damage / rounds, 1)} ADR."
             )
 
