@@ -97,7 +97,7 @@ class HeightPlugin(MeasurePlugin[int]):
         return "height"
 
     async def get_measure(self, name: str) -> int:
-        return int(random.normalvariate(65, 3))
+        return int(random.normalvariate(70, 4))
 
     async def format_measure(self, name: str, measure: int) -> str:
         return f"{imperial(measure)} ({metric(measure)})"
