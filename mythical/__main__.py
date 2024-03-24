@@ -15,7 +15,7 @@ from mythical.bot import Bot
 from mythical.plugin.raider import RaiderPlugin
 from mythical.plugin.faceit import FaceitPlugin
 from mythical.plugin.valorant import ValorantPlugin
-from mythical.plugin.height import HeightPlugin
+from mythical.plugin.height import HeightPlugin, LengthPlugin
 from mythical.plugin.siege import SiegePlugin
 
 config = configparser.ConfigParser()
@@ -40,6 +40,7 @@ bot = Bot(
         "valorant": lambda b: ValorantPlugin(b, connection),
         "siege": lambda b: SiegePlugin(b, connection),
         "height": HeightPlugin,
+        "length": LengthPlugin,
     },
 )
 
