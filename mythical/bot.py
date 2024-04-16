@@ -146,16 +146,15 @@ class Bot(disnake.Client):
 
         formatted_exception = "".join(traceback.format_exception(exception)).rstrip()
         frame = sys.exc_info()[2]
-        formatted_locals = pprint.pformat(frame.tb_next.tb_frame.f_locals)
 
         channel = self.get_channel(self.debug_id)
         if channel is not None:
-            await channel.send(f"Error: {exception}\n```{formatted_exception}\nLocals: {formatted_locals[:500]}```")
+            await channel.send(f"Error: {exception}\n```{formatted_exception[:1000]}```")
         else:
             print(f"Could not find channel {self.debug_id}!")
-            print(f"Error: {exception}")
-            print(formatted_exception)
-            print(f"Locals: {formatted_locals}")
+
+        print(f"Error: {exception}")
+        print(formatted_exception)
 
 
 def try_get_member(argument: str, message: disnake.Message) -> Optional[disnake.Member]:

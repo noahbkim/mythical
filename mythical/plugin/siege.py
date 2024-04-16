@@ -1,4 +1,5 @@
 import configparser
+import ipaddress
 import sqlite3
 import sys
 from dataclasses import dataclass
@@ -98,6 +99,10 @@ class SiegePlugin(BotPlugin):
                 player_data = await auth.get_player(uid=player.uid)
                 await player_data.load_ranked_v2()
                 await self.update_player(player, player_data)
+        except ipaddress.AddressValueError as error:
+            raise BotError(f"invalid request: {error}")
+        except RecursionError as error:
+            print(f"recursion error: {error}")
         finally:
             await auth.close()
 
@@ -182,6 +187,8 @@ class SiegePlugin(BotPlugin):
             rank_name = player_data.ranked_profile.rank
             rank_points = player_data.ranked_profile.rank_points
         except siegeapi.InvalidRequest as error:
+            raise BotError(f"invalid request: {error}")
+        except ipaddress.AddressValueError as error:
             raise BotError(f"invalid request: {error}")
         finally:
             await auth.close()
