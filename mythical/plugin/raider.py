@@ -26,7 +26,7 @@ def get_all_mythic_plus_best_runs(region: str, realm: str, name: str) -> dict:
         f"?region={region}"
         f"&realm={realm}"
         f"&name={name}"
-        f"&fields=mythic_plus_best_runs:all,mythic_plus_alternate_runs:all,mythic_plus_recent_runs"
+        f"&fields=mythic_plus_scores_by_season:current,mythic_plus_ranks,mythic_plus_recent_runs"
     )
 
     response = requests.get(url, headers={"Accept": "application/json"})
@@ -49,8 +49,10 @@ def compute_mythic_plus_rating(data: dict) -> float:
     return score
 
 
-def describe_recent_runs(data: dict) -> Optional[str]:
+def describe_recent_runs(data: dict) -> str:
     """Describe their most recent run."""
+
+    description = []
 
     recent_runs = data.get("mythic_plus_recent_runs")
     if recent_runs:
@@ -59,12 +61,22 @@ def describe_recent_runs(data: dict) -> Optional[str]:
         mythic_level = run["mythic_level"]
         clear_time = _format_time(run["clear_time_ms"])
         affixes = ", ".join(affix["name"] for affix in run["affixes"])
-        return (
+        description.append(
             f"Their most recent run was {dungeon} +{mythic_level} in {clear_time}"
             f" with affixes {affixes}."
         )
-    else:
-        return None
+
+    ranks = data.get("mythic_plus_ranks")
+    if ranks:
+        class_name = data["class"]
+        class_rank = data["mythic_plus_ranks"]["class"]["world"]
+        overall_rank = data["mythic_plus_ranks"]["overall"]["world"]
+        description.append(
+            f"They are now rank #{class_rank} {class_name} and #{overall_rank}"
+            " overall, globally."
+        )
+
+    return " ".join(description)
 
 
 @dataclass
@@ -129,7 +141,7 @@ def create_rating_embed(data: dict, rating: float) -> disnake.Embed:
 
     embed = disnake.Embed(
         title=f"{name} has mythic+ rating {round(rating, 1)}",
-        description=describe_recent_runs(data),
+        description=describe_recent_runs(data) or None,
         timestamp=datetime.datetime.now(),
     )
 
@@ -176,7 +188,7 @@ class RaiderPlugin(BotPlugin):
         for player in self.tracker.get_spectated_players():
             try:
                 data = get_all_mythic_plus_best_runs(player.region, player.realm, player.name)
-                new_rating = compute_mythic_plus_rating(data)
+                new_rating = data["mythic_plus_scores_by_season"][0]["scores"]["all"]
             except BotError as error:
                 print(f"error while retrieving data for {player}: {error}")
                 continue
@@ -210,7 +222,7 @@ class RaiderPlugin(BotPlugin):
 
                 embed = disnake.Embed(
                     title=f"{player.name} reached mythic+ rating {round(new_rating, 1)}",
-                    description=describe_recent_runs(data),
+                    description=describe_recent_runs(data) or None,
                     color=0x77dd77,
                     timestamp=datetime.datetime.now(),
                 )
