@@ -73,7 +73,7 @@ def describe_recent_runs(data: dict) -> str:
         overall_rank = data["mythic_plus_ranks"]["overall"]["world"]
         description.append(
             f"They are now rank #{class_rank} {class_name} and #{overall_rank}"
-            " overall, globally."
+            " overall."
         )
 
     return " ".join(description)
