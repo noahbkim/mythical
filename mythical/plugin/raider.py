@@ -6,7 +6,6 @@ import datetime
 import random
 import sqlite3
 from dataclasses import dataclass
-from typing import Optional
 
 from ..tracker import Tracker, Player
 from ..bot import Bot, BotPlugin, BotError, get_member, handle_exception, try_get_member
@@ -67,7 +66,7 @@ def describe_recent_runs(data: dict) -> str:
         class_rank = data["mythic_plus_ranks"]["class"]["world"]
         overall_rank = data["mythic_plus_ranks"]["overall"]["world"]
         description.append(
-            f"They are rank #{class_rank} {class_name} and #{overall_rank} overall."
+            f"They are rank #{class_rank:,} {class_name} and #{overall_rank:,} overall."
         )
 
     return " ".join(description)
@@ -135,14 +134,14 @@ def create_rating_embed(data: dict, rating: float) -> disnake.Embed:
 
     embed = disnake.Embed(
         title=f"{name} has mythic+ rating {round(rating, 1)}",
+        url=data["profile_url"],
         description=describe_recent_runs(data) or None,
-        timestamp=datetime.datetime.now(),
     )
 
-    character = " ".join((data["gender"], data["class"], data["race"])).lower().capitalize()
+    character = data["gender"] + " " + data["race"]
     embed.add_field("Character", character, inline=True)
+    embed.add_field("Class", data["class"], inline=True)
     embed.add_field("Spec", data["active_spec_name"], inline=True)
-    embed.add_field("Raider", data["profile_url"], inline=False)
     embed.set_thumbnail(url=data["thumbnail_url"])
 
     return embed
@@ -216,14 +215,13 @@ class RaiderPlugin(BotPlugin):
 
                 embed = disnake.Embed(
                     title=f"{player.name} reached mythic+ rating {round(new_rating, 1)}",
+                    url=data["profile_url"],
                     description=describe_recent_runs(data) or None,
                     color=0x77dd77,
-                    timestamp=datetime.datetime.now(),
                 )
 
-                embed.add_field(name="Previous", value=str(round(player.rating, 1)), inline=True)
-                embed.add_field(name="Gain", value=str(round(new_rating - player.rating, 1)), inline=True)
-                embed.add_field("Raider", data["profile_url"], inline=False)
+                # embed.add_field(name="Previous", value=str(round(player.rating, 1)), inline=True)
+                # embed.add_field(name="Gain", value=str(round(new_rating - player.rating, 1)), inline=True)
                 embed.set_thumbnail(url=data["thumbnail_url"])
 
                 await channel.send(embed=embed)
