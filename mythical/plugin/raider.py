@@ -41,12 +41,7 @@ def get_all_mythic_plus_best_runs(region: str, realm: str, name: str) -> dict:
 def compute_mythic_plus_rating(data: dict) -> float:
     """Compute the raider.io rating given best run data."""
 
-    score = 0
-    for run in data["mythic_plus_best_runs"]:
-        score += 1.5 * run["score"]
-    for run in data["mythic_plus_alternate_runs"]:
-        score += 0.5 * run["score"]
-    return score
+    return data["mythic_plus_scores_by_season"][0]["scores"]["all"]
 
 
 def describe_recent_runs(data: dict) -> str:
@@ -188,7 +183,7 @@ class RaiderPlugin(BotPlugin):
         for player in self.tracker.get_spectated_players():
             try:
                 data = get_all_mythic_plus_best_runs(player.region, player.realm, player.name)
-                new_rating = data["mythic_plus_scores_by_season"][0]["scores"]["all"]
+                new_rating = compute_mythic_plus_rating(data)
             except BotError as error:
                 print(f"error while retrieving data for {player}: {error}")
                 continue
