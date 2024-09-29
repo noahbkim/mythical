@@ -64,9 +64,9 @@ def describe_recent_runs(data: dict) -> str:
     if ranks:
         class_name = data["class"]
         class_rank = data["mythic_plus_ranks"]["class"]["world"]
-        overall_rank = data["mythic_plus_ranks"]["overall"]["world"]
+        # overall_rank = data["mythic_plus_ranks"]["overall"]["world"]
         description.append(
-            f"They are rank #{class_rank:,} {class_name} and #{overall_rank:,} overall."
+            f"They are rank #{class_rank:,} {class_name}."
         )
 
     return " ".join(description)
@@ -214,9 +214,9 @@ class RaiderPlugin(BotPlugin):
                         member_name = f" ({member.name})"
 
                 embed = disnake.Embed(
-                    title=f"{player.name} reached mythic+ rating {round(new_rating, 1)}",
+                    title=f"{player.name} gained {round(new_rating - player.rating, 1)} mythic+ rating",
                     url=data["profile_url"],
-                    description=describe_recent_runs(data) or None,
+                    description=f"They are now {round(new_rating, 1)}. {describe_recent_runs(data)}".strip(),
                     color=0x77dd77,
                 )
 
